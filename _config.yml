@@ -1,1 +1,2 @@
-theme: jekyll-theme-tactile
+__theme: jekyll-theme-tactile
+remote_theme:ferrolho/jekyll-theme-libretto
