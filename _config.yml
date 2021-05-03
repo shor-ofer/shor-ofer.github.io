@@ -1,2 +1,3 @@
-_theme: jekyll-theme-tactile
-remote_theme : ferrolho/jekyll-theme-libretto
+theme: jekyll-theme-libretto
+_asd : jekyll-theme-tactile
+_remote_theme : ferrolho/jekyll-theme-libretto
