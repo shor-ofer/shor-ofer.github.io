@@ -4,4 +4,4 @@
 
 papa
 
-![Test image](https://raw.githubusercontent.com/shor-ofer/shor-ofer.github.io/main/test.png)
+![Test image](test.png)
