@@ -4,4 +4,4 @@
 
 papa
 
-![Test image](test.png)
+![Test image](/test.png)
