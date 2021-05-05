@@ -1,0 +1,32 @@
+.container {
+    position: absolute;
+    top: 16px;
+    left: 16px;
+    
+    background-color: #222;
+    color: #fff;
+    font-weight: 100;
+    padding: 8px;
+    
+    box-shadow: 0 0 16px rgba(0, 0, 0, .3);
+}
+
+.container > .text1, .text2 {
+    color: #ff0;
+    font-size: 24px;
+}
+
+.container > .counter, .result {
+    color: #f00;
+    font-size: 24px;
+}
+
+.container > .text0 {
+    color: #fff;
+    font-size: 24px;
+}
+
+.container > .text {
+    color: #0ff;
+    font-size: 24px;
+}
