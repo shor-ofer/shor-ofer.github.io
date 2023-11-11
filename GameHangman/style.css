@@ -1,0 +1,51 @@
+.game {
+}
+
+#game_canvas {
+
+    border: 5px solid rgb(0, 102, 255);
+    width:300px;
+    height:300px;
+    display:inline;
+}
+
+
+@font-face {
+    font-family: myWord;
+    src: url(RubikMonoOne-Regular.ttf);
+  }
+
+.word {
+    font-family: myWord;
+    font-size: 100px;
+}
+
+
+.letter {
+    display:inline-block;
+    font-size: 30px;
+    min-width: 50px;
+    min-height: 50px;
+    margin:5px;
+    padding:5px;
+    background-color: rgb(112, 161, 235);
+    border:3px;
+    border-radius: 3px;
+    transition: all 200ms ease-in;
+}
+
+.letter:hover {
+    font-size: 30px;
+    transition: background-color 400ms linear;
+    transition: all 200ms ease-in;
+  }
+
+  .selectedgood {
+    transform: rotate(20deg);
+    background-color: rgb(1, 175, 103);
+  }
+
+  .selectedbad {
+    transform: rotate(20deg);
+    background-color: rgb(255, 0, 0);
+  }

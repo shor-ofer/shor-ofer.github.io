@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width">
+  <title>OCSGame Hangman Game</title>
+  <link href="style.css" rel="stylesheet" type="text/css" />
+  <script src="https://code.jquery.com/jquery-3.7.1.min.js"
+    integrity="sha256-/JqT3SQfawRcv/BIHPThkBvs0OEvtFFmqPF/lYI/Cxo=" crossorigin="anonymous"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/css/materialize.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/js/materialize.min.js"></script>
+</head>
+<script src="third/p2.js"></script>
+<script src="third/p2.renderer.js"></script>
+<script src="Ragdoll.js"></script>
+
+<body>
+  <script src="Hangman.js"></script>
+
+  <div class="row">
+    <div class="col s12">
+      <ul id="ofer" class="tabs">
+        <li class="tab col s3"><a class="active" href="#Home">Home</a></li>
+        <li class="tab col s3"><a href="#Game">Game</a></li>
+      </ul>
+    </div>
+    <div id="Home" class="col s12">
+      <div class="card-panel grey lighten-5 z-depth-1">
+        <div class="card-action center-align">
+          <a id="Play" class="waves-effect waves-light btn">Play</a>
+        </div>
+      </div>
+    </div>
+    <div id="Game" class="col s12">
+      <div class="card-panel grey lighten-5 z-depth-1 center-align">
+        <div id="letters"></div>
+        <div class="word" id="word"></div>
+        <div class="container" id="gamearea" width="300px" height="300px"></div>
+      </div>
+    </div>
+  </div>
+  <script>
+
+    $(document).ready(function () {
+
+      // init materialize tab
+      $('.tabs').tabs({
+        onShow: function (tab) {
+          if (tab.id == 'Game') {
+              InitGame(document.getElementById('gamearea'));
+          }
+        }
+      });
+
+
+      $('#Play').click(function () {
+        $('.tabs').tabs('select', 'Game');
+      });
+
+    });
+
+
+  </script>
+
+</body>
+
+</html>
