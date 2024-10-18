@@ -1,10 +1,13 @@
 html {
     height: 100%; /* Ensure the body and html take full height */
+    width:100%;
     margin: 0; /* Remove default margin */
+    padding: 0;
 }
 
 body {
     height: 100%; /* Ensure the body and html take full height */
+    width:100%;
     font-family: Arial, sans-serif;
     text-align: center;
     background-color: #0000c0;
