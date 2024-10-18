@@ -1,7 +1,7 @@
 html {
     height: 100%; /* Ensure the body and html take full height */
     width:100%;
-    margin: 0; /* Remove default margin */
+    margin: 0 auto; /* Remove default margin */
     padding: 0;
 }
 
@@ -12,7 +12,7 @@ body {
     text-align: center;
     background-color: #0000c0;
     color:yellow;
-    margin: 0;
+    margin: 0 auto;
     padding: 0;
 }
 
@@ -58,9 +58,9 @@ button {
     -2px 2px 0 #000,
     -2px -2px 0 #000,
     2px -2px 0 #000;
-    width:400px;
+    width:50%;
     background-color: #1392c4;
-    border-radius: 30px;
+    border-radius: 1rem;
     
 }
 
