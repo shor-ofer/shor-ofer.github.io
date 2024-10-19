@@ -24,7 +24,7 @@ class RangeUI
 
                 // Add click event listener
                 cell.addEventListener('click', ()=> {
-                    gameUI.playEffect(Sound.SUCCESS);
+                    gameUI.playEffect(Sound.RANGE);
                     this.colorCells(i, j);
                     game.maxi=i;
                     game.maxj=j;
