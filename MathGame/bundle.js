@@ -128,6 +128,8 @@
   var Game = class {
     constructor() {
       this.initialSpawnRate = 8e3;
+      this.maxi = 10;
+      this.maxj = 10;
       this.init();
     }
     init() {
@@ -179,8 +181,8 @@
         return;
       }
       var exercise = {};
-      const num1 = this.randomNum(1, 10);
-      const num2 = this.randomNum(1, 10);
+      const num1 = this.randomNum(1, this.maxi);
+      const num2 = this.randomNum(1, this.maxj);
       exercise.num1 = num1;
       exercise.num2 = num2;
       exercise.answer = num1 * num2;
@@ -402,6 +404,65 @@
   };
   var optionsUI = new OptionsUI();
 
+  // GameClass/rangeUI.js
+  var RangeUI = class {
+    constructor() {
+    }
+    createTable() {
+      const table = document.getElementById("multiplicationTable");
+      table.innerHTML = "";
+      for (let i = 1; i <= 10; i++) {
+        const row = document.createElement("tr");
+        for (let j = 1; j <= 10; j++) {
+          const cell = document.createElement("td");
+          cell.textContent = i * j;
+          cell.dataset.row = i;
+          cell.dataset.col = j;
+          cell.style.cursor = "pointer";
+          if (i == 1 || j == 1)
+            cell.classList.add("c1i");
+          else
+            cell.classList.add("c1");
+          cell.addEventListener("click", () => {
+            gameUI.playEffect(sounds_default.SUCCESS);
+            this.colorCells(i, j);
+            game.maxi = i;
+            game.maxj = j;
+          });
+          row.appendChild(cell);
+        }
+        table.appendChild(row);
+      }
+    }
+    colorCells(row, col) {
+      const cells = document.querySelectorAll("td");
+      cells.forEach((cell) => {
+        const cellRow = parseInt(cell.dataset.row);
+        const cellCol = parseInt(cell.dataset.col);
+        if (cellRow <= row && cellCol <= col) {
+          cell.classList.remove("c1");
+          cell.classList.remove("c1i");
+          if (cellRow == 1 || cellCol == 1)
+            cell.classList.add("c2i");
+          else
+            cell.classList.add("c2");
+        } else {
+          cell.classList.remove("c2");
+          cell.classList.remove("c2i");
+          if (cellRow == 1 || cellCol == 1)
+            cell.classList.add("c1i");
+          else
+            cell.classList.add("c1");
+        }
+      });
+    }
+    onShow() {
+      this.createTable();
+      this.colorCells(game.maxi, game.maxj);
+    }
+  };
+  var rangeUI = new RangeUI();
+
   // gamemanager.js
   function showScreen2(screenId) {
     document.querySelectorAll(".screen").forEach((screen2) => {
@@ -419,6 +480,8 @@
       gameoverUI.onShow();
     } else if (screenId === "options-screen") {
       optionsUI.onShow();
+    } else if (screenId === "range-screen") {
+      rangeUI.onShow();
     }
   }
   document.addEventListener("DOMContentLoaded", () => {

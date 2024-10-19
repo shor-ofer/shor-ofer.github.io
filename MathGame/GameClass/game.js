@@ -8,6 +8,8 @@ class Game {
 
     constructor() {
         this.initialSpawnRate = 8000;
+        this.maxi = 10;
+        this.maxj = 10;    
         this.init();
         // Game properties can be added later as needed
     }
@@ -21,7 +23,7 @@ class Game {
         this.spawnRate = this.initialSpawnRate; // Set spawn rate to 6 seconds for slower pace
         this.maxExercises = 10; // Game over when there are 10 exercises
         this.initialExercises = 3; // Always start each level with 3 exercises
-        this.exerciseInterval;      
+        this.exerciseInterval;  
     }
 
     start() {
@@ -75,8 +77,8 @@ class Game {
         }
 
         var exercise = {};
-        const num1 = this.randomNum(1, 10);
-        const num2 = this.randomNum(1, 10);
+        const num1 = this.randomNum(1, this.maxi);
+        const num2 = this.randomNum(1, this.maxj);
         exercise.num1 = num1;
         exercise.num2 = num2;
         exercise.answer = num1*num2;

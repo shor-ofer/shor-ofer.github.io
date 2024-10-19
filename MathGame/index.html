@@ -21,6 +21,7 @@
             <li><button class="game-button" onclick="showScreen('game-screen')">Play</button></li>
             <li><button class="game-button" onclick="showScreen('highscore-screen')">High Score</button></li>
             <li><button class="game-button" onclick="showScreen('options-screen')">Options</button></li>
+            <li><button class="game-button" onclick="showScreen('range-screen')">Range</button></li>
             <li><button class="game-button" onclick="showScreen('credit-screen')">Credits</button></li>
         </ul>
     </div>
@@ -65,6 +66,15 @@
             <button id="options-medium" class="game-button">Medium</button>
             <button id="options-hard"   class="game-button">Hard</button>
         </p>
+        <button class="game-button" onclick="showScreen('open-screen')">Back to Menu</button>
+    </div>
+
+    <!-- Range Screen -->
+    <div id="range-screen" class="screen">
+        <h1>Range</h1>
+        <div class="centerbox">
+            <table class="range" id="multiplicationTable"></table>        
+        </div>
         <button class="game-button" onclick="showScreen('open-screen')">Back to Menu</button>
     </div>
 

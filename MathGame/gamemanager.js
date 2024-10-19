@@ -2,6 +2,7 @@ import { highScoreUI, testHighScore } from './GameClass/highscoreUI.js';
 import { gameUI } from './GameClass/gameUI.js';
 import { gameoverUI } from './GameClass/gameoverUI.js';
 import { optionsUI } from './GameClass/optionsUI.js';
+import { rangeUI } from './GameClass/rangeUI.js';
 
 // Hook into the showScreen function to call the appropriate UI class when screens are shown
 export function showScreen(screenId) {
@@ -25,6 +26,8 @@ export function showScreen(screenId) {
         gameoverUI.onShow();
     } else if (screenId === 'options-screen') {
         optionsUI.onShow();
+    } else if (screenId === 'range-screen') {
+        rangeUI.onShow();
     }
 
 

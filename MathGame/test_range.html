@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multiplication Table</title>
+    <style>
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            max-width: 400px;
+            margin: 20px auto;
+        }
+        td {
+            border: 1px solid black;
+            padding: 10px;
+            text-align: center;
+            cursor: pointer;
+        }
+        td.colored {
+            background-color: lightblue;
+        }
+    </style>
+</head>
+<body>
+
+    <table id="multiplicationTable"></table>
+
+    <script>
+        function createTable() {
+            const table = document.getElementById("multiplicationTable");
+
+            for (let i = 1; i <= 10; i++) {
+                const row = document.createElement("tr");
+                for (let j = 1; j <= 10; j++) {
+                    const cell = document.createElement("td");
+                    cell.textContent = i * j;
+                    cell.dataset.row = i;
+                    cell.dataset.col = j;
+
+                    // Add click event listener
+                    cell.addEventListener('click', function() {
+                        colorCells(i, j);
+                    });
+
+                    row.appendChild(cell);
+                }
+                table.appendChild(row);
+            }
+        }
+
+        function colorCells(row, col) {
+            const cells = document.querySelectorAll("td");
+
+            cells.forEach(cell => {
+                const cellRow = parseInt(cell.dataset.row);
+                const cellCol = parseInt(cell.dataset.col);
+
+                // Check if the cell is within the (1,1) to (row,col) range
+                if (cellRow <= row && cellCol <= col) {
+                    cell.classList.add("colored");
+                } else {
+                    cell.classList.remove("colored");
+                }
+            });
+        }
+
+        // Create the table on page load
+        window.onload = createTable;
+    </script>
+
+</body>
+</html>
