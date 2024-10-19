@@ -1,5 +1,5 @@
 import { game ,gameUI } from './gameUI.js';
-import Sound from './Sounds.js';
+import Sound from './sounds.js';
 
 class GameOverUI
 {

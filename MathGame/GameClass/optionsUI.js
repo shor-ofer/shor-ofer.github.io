@@ -1,7 +1,7 @@
 import { game  } from './gameUI.js';
 
-const OPTION_EASY=10000;
-const OPTION_MEDIUM=6000;
+const OPTION_EASY=8000;
+const OPTION_MEDIUM=5000;
 const OPTION_HARD=3000;
 
 class OptionsUI

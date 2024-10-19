@@ -1,6 +1,6 @@
 // gameUI.js
 import Game from './game.js';
-import Sound from './Sounds.js';
+import Sound from './sounds.js';
 
 
 
@@ -32,6 +32,11 @@ class GameUI {
         }, 300); // delay for fade-out animation
     }
 
+    setFocus(exerciseId)
+    {
+        document.getElementById(exerciseId).querySelector("#answer").focus();
+    }
+
     updateScore()
     {
         document.getElementById('score-value').textContent = this.game.score;
@@ -47,7 +52,7 @@ class GameUI {
         const div = document.createElement('div');
         div.className = 'exercise';
         div.id = exerciseId;
-        div.innerHTML = `${e.num1} x ${e.num2} = <input type="number" class="answer" data-answer="${e.answer}" data-id="${exerciseId}">`;
+        div.innerHTML = `${e.num1} x ${e.num2} = <input id="answer" type="number" class="answer" data-answer="${e.answer}" data-id="${exerciseId}">`;
         this.gameContainer.appendChild(div);
         return exerciseId;
     }
@@ -93,8 +98,8 @@ class GameUI {
         e_effect.load();
 
         e_effect.sorce
-        e_effect.volume=1.0;
-        e_effect.play();
+        e_effect.volume=0.5;
+        e_effect.play().catch(error => {});
     
     }
     stopEffect()

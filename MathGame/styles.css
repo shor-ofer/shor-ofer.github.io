@@ -110,7 +110,7 @@ button {
 }
 
 #countdown-display span {
-    font-size: 5rem;
+    font-size: 4rem;
     color: yellow; /* Text color */
     text-shadow:
     3px 3px 0 #000,
@@ -131,8 +131,9 @@ button {
 }
 
 .exercise {
+    width:8em;
     border: 2px solid #4CAF50; /* Change border color as needed */
-    border-radius: 15px 0 15px 0; /* Round top-left and bottom-right corners */
+    border-radius: 1em; /* Round top-left and bottom-right corners */
     padding: 10px; /* Add some padding */
     margin: 10px; /* Add some space between exercises */
     background-color: #1392c4; /* Light background for visibility */
@@ -140,10 +141,20 @@ button {
     transition: background-color 0.3s; /* Smooth transition for background color changes */
     transition: opacity 0.3s; /* Smooth transition for opacity */
 }
+/* Chrome, Safari, Edge, Opera */
+input::-webkit-outer-spin-button,
+input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
 
+/* Firefox */
+input[type=number] {
+  -moz-appearance: textfield;
+}
 
 .answer {
-    width: 100%;
+    width: 3em;
     font-size: 1em;
     padding: 5px;
     box-sizing: border-box; /* Prevent vertical scroll */
@@ -174,7 +185,7 @@ button {
     border: 3px solid;
     border-color: #1c629d;    
     border-radius: 20px;
-    font-size: 1rem;
+    font-size: 0.5rem;
     display : block;
     font-family: "Chango", sans-serif;
     font-weight: 400;
@@ -200,4 +211,11 @@ button {
   /* selected link */
   .credit a:active {
     color: #a6ff00;
+  }
+
+  .large {
+    font-size: 1rem;
+  }
+  .small {
+    font-size: 0.5rem;
   }

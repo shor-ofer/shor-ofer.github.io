@@ -1,12 +1,13 @@
 // game.js
 import { highScoreManager  } from './highscoreUI.js';
+import Sound from './sounds.js';
 
-const SUCCESS = "Assets/success-1-6297.mp3";
 
 
 class Game {
+
     constructor() {
-        this.initialSpawnRate = 10000;
+        this.initialSpawnRate = 8000;
         this.init();
         // Game properties can be added later as needed
     }
@@ -40,14 +41,22 @@ class Game {
     {
         // Only increase score if the answer is correct
         if (playerAnswer === correctAnswer) {
-            this.gameUI.playEffect(SUCCESS);
+            this.gameUI.playEffect(Sound.SUCCESS);
             this.exercises = this.exercises.filter(id => id !== exerciseId);
             this.gameUI.removeExercise(exerciseId);
             this.score++;
             this.gameUI.updateScore();
+            if (this.exercises.length)
+                this.gameUI.setFocus(this.exercises[0]);
             if (this.exercises.length==0)
                 this.levelUp();
         }
+        if (playerAnswer.toString().length == correctAnswer.toString().length && 
+            playerAnswer !== correctAnswer)
+        {
+            this.gameUI.playEffect(Sound.ERROR);  
+        }
+
 
     }
     addExercise() {
@@ -70,11 +79,17 @@ class Game {
 
     }
     levelUp() {
+        // Make sure we would not add new exerciseInterval
+        clearInterval(this.exerciseInterval);
+
+        // Update level number
         this.level++;
 
-        this.spawnRate -= 500; // Increase speed for new exercises
+        // Update rate
+        this.spawnRate -= 1000; // Increase speed for new exercises
         if (this.spawnRate < 1000) this.spawnRate = 1000; // Cap the speed
 
+        // Start count down and continue in start level
         this.gameUI.startCountdown(this.startLevel.bind(this));
     }
 
@@ -87,6 +102,8 @@ class Game {
         for (let i = 0; i < this.initialExercises; i++) {
             this.addExercise();
         }    
+        // set the focus on the first exercise;
+        this.gameUI.setFocus(this.exercises[0]);
         
         // Set an interval to add exercises periodically
         clearInterval(this.exerciseInterval);

@@ -21,7 +21,7 @@
             <li><button class="game-button" onclick="showScreen('game-screen')">Play</button></li>
             <li><button class="game-button" onclick="showScreen('highscore-screen')">High Score</button></li>
             <li><button class="game-button" onclick="showScreen('options-screen')">Options</button></li>
-            <li><button class="game-button" onclick="showScreen('credit-screen')">Credit</button></li>
+            <li><button class="game-button" onclick="showScreen('credit-screen')">Credits</button></li>
         </ul>
     </div>
 
@@ -42,9 +42,8 @@
         <audio style="display:none" id ="effect" controls=""  name="media">
             <source id="mp3Effect" src="" type="audio/mpeg">
           </audio>    
-        <h1>Game Screen</h1>
         <div id="countdown-display" style="display: none;"></div> <!-- Countdown display -->
-        <div id="score-board">Score: <span id="score-value">0</span> | Level: <span id="level-value">1</span></div>
+        <p><div id="score-board">Score: <span id="score-value">0</span> | Level: <span id="level-value">1</span></div></p>
         <div id="game-container"></div>
     </div>
 
@@ -67,14 +66,16 @@
 
     <!-- Credit Screen -->
     <div id="credit-screen" class="screen">
-        <h1>Credit</h1>
-        <div class="credit"><p>Music : Roa - Traveler</p>
-            <p>Watch: <a href='http://youtu.be/1y4fxrEqjAg'>http://youtu.be/1y4fxrEqjAg</a></p>
-            <p>Stream / Download : <a href='https://hypeddit.com/roamusic/traveler'>https://hypeddit.com/roamusic/traveler</a></p>
-            <p>License : <a href='http://roa-music.com/how-to-use'>http://roa-music.com/how-to-use</a></p>
+        <h1>Credits</h1>
+        <div class="credit large"><p>Game By Shor Ofer</p></div>
+        <div class="credit large"><p>Music : Roa - Traveler</p>
+            <p class="small">Watch: <a href='http://youtu.be/1y4fxrEqjAg'>http://youtu.be/1y4fxrEqjAg</a></p>
+            <p class="small">Stream / Download : <a href='https://hypeddit.com/roamusic/traveler'>https://hypeddit.com/roamusic/traveler</a></p>
+            <p class="small">License : <a href='http://roa-music.com/how-to-use'>http://roa-music.com/how-to-use</a></p>
         </div>
-        <div class="credit">
-            <p>Sound Effect from <a href="https://pixabay.com/sound-effects/?utm_source=link-attribution&utm_medium=referral&utm_campaign=music&utm_content=100761">Pixabay</a></p>
+        <div class="credit large">
+            <p>Effects from Pixabay</p>
+            <p><a href="https://pixabay.com/sound-effects/?utm_source=link-attribution&utm_medium=referral&utm_campaign=music&utm_content=100761">Pixabay</a></p>
         </div>
         <button class="game-button" onclick="showScreen('open-screen')">Back to Menu</button>
     </div>    

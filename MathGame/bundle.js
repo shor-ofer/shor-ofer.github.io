@@ -100,11 +100,19 @@
   var highScoreUI = new HighScoreUI(highScoreManager);
   var testHighScore = new TestHighScore(highScoreManager);
 
+  // GameClass/sounds.js
+  var Sound = {
+    SUCCESS: "Assets/success-1-6297.mp3",
+    ERROR: "Assets/error-4-199275.mp3",
+    COUNTDOWN: "Assets/countdown-sound-effect-8-bit-151797.mp3",
+    GAMEOVER: "Assets/brass-fail-11-a-207140.mp3"
+  };
+  var sounds_default = Sound;
+
   // GameClass/game.js
-  var SUCCESS = "Assets/success-1-6297.mp3";
   var Game = class {
     constructor() {
-      this.initialSpawnRate = 1e4;
+      this.initialSpawnRate = 8e3;
       this.init();
     }
     init() {
@@ -129,13 +137,18 @@
     }
     checkAnswer(playerAnswer, exerciseId, correctAnswer) {
       if (playerAnswer === correctAnswer) {
-        this.gameUI.playEffect(SUCCESS);
+        this.gameUI.playEffect(sounds_default.SUCCESS);
         this.exercises = this.exercises.filter((id) => id !== exerciseId);
         this.gameUI.removeExercise(exerciseId);
         this.score++;
         this.gameUI.updateScore();
+        if (this.exercises.length)
+          this.gameUI.setFocus(this.exercises[0]);
         if (this.exercises.length == 0)
           this.levelUp();
+      }
+      if (playerAnswer.toString().length == correctAnswer.toString().length && playerAnswer !== correctAnswer) {
+        this.gameUI.playEffect(sounds_default.ERROR);
       }
     }
     addExercise() {
@@ -154,8 +167,9 @@
       this.exercises.push(exerciseId);
     }
     levelUp() {
+      clearInterval(this.exerciseInterval);
       this.level++;
-      this.spawnRate -= 500;
+      this.spawnRate -= 1e3;
       if (this.spawnRate < 1e3) this.spawnRate = 1e3;
       this.gameUI.startCountdown(this.startLevel.bind(this));
     }
@@ -166,6 +180,7 @@
       for (let i = 0; i < this.initialExercises; i++) {
         this.addExercise();
       }
+      this.gameUI.setFocus(this.exercises[0]);
       clearInterval(this.exerciseInterval);
       this.exerciseInterval = setInterval(this.addExercise.bind(this), this.spawnRate);
     }
@@ -180,14 +195,6 @@
     }
   };
   var game_default = Game;
-
-  // GameClass/Sounds.js
-  var Sound = {
-    SUCCESS: "Assets/success-1-6297.mp3",
-    COUNTDOWN: "Assets/countdown-sound-effect-8-bit-151797.mp3",
-    GAMEOVER: "Assets/brass-fail-11-a-207140.mp3"
-  };
-  var Sounds_default = Sound;
 
   // GameClass/gameUI.js
   var GameUI = class {
@@ -210,6 +217,9 @@
         document.getElementById(exerciseId).remove();
       }, 300);
     }
+    setFocus(exerciseId) {
+      document.getElementById(exerciseId).querySelector("#answer").focus();
+    }
     updateScore() {
       document.getElementById("score-value").textContent = this.game.score;
     }
@@ -221,7 +231,7 @@
       const div = document.createElement("div");
       div.className = "exercise";
       div.id = exerciseId;
-      div.innerHTML = `${e.num1} x ${e.num2} = <input type="number" class="answer" data-answer="${e.answer}" data-id="${exerciseId}">`;
+      div.innerHTML = `${e.num1} x ${e.num2} = <input id="answer" type="number" class="answer" data-answer="${e.answer}" data-id="${exerciseId}">`;
       this.gameContainer.appendChild(div);
       return exerciseId;
     }
@@ -234,7 +244,7 @@
     }
     startCountdown(onCountDownFinishFunction) {
       this.updateCountDown(3);
-      this.playEffect(Sounds_default.COUNTDOWN);
+      this.playEffect(sounds_default.COUNTDOWN);
       this.countdownDisplay.style.display = "flex";
       clearInterval(this.intervalId);
       this.intervalId = setInterval(() => {
@@ -256,8 +266,9 @@
       audio.src = name;
       e_effect.load();
       e_effect.sorce;
-      e_effect.volume = 1;
-      e_effect.play();
+      e_effect.volume = 0.5;
+      e_effect.play().catch((error) => {
+      });
     }
     stopEffect() {
       var e_effect = document.getElementById("effect");
@@ -292,7 +303,7 @@
     }
     // This will be called when game over screen is opened
     onShow() {
-      gameUI.playEffect(Sounds_default.GAMEOVER);
+      gameUI.playEffect(sounds_default.GAMEOVER);
       this.highScoreDisplay.textContent = game.score;
       this.levelDisplay.textContent = game.level;
     }
@@ -300,8 +311,8 @@
   var gameoverUI = new GameOverUI();
 
   // GameClass/optionsUI.js
-  var OPTION_EASY = 1e4;
-  var OPTION_MEDIUM = 6e3;
+  var OPTION_EASY = 8e3;
+  var OPTION_MEDIUM = 5e3;
   var OPTION_HARD = 3e3;
   var OptionsUI = class {
     constructor() {
