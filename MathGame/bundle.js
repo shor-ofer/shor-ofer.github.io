@@ -4,8 +4,10 @@
     constructor() {
       this.highScoreKey = "gameHighScore";
       this.levelKey = "gameLevel";
+      this.solvedKey = "gameSolved";
       this.highScore = 0;
       this.level = 0;
+      this.solved = 0;
       this.load();
     }
     // Load the high score from local storage
@@ -14,6 +16,8 @@
       this.highScore = storedHighScore ? parseInt(storedHighScore, 10) : 0;
       const storedLevel = localStorage.getItem(this.levelKey);
       this.level = storedLevel ? parseInt(storedLevel, 10) : 0;
+      const storedSolved = localStorage.getItem(this.solvedKey);
+      this.solved = storedSolved ? parseInt(storedSolved, 10) : 0;
     }
     // Get the current high score
     getHighScore() {
@@ -23,9 +27,13 @@
     getLevel() {
       return this.level;
     }
+    getSolved() {
+      return this.solved;
+    }
     // Set a new score, update if it's higher than the current high score
-    set(newScore, newLevel) {
+    set(newScore, solved, newLevel) {
       if (newScore >= this.highScore) {
+        this.solved = solved;
         this.highScore = newScore;
         if (newLevel > this.level)
           this.level = newLevel;
@@ -36,11 +44,13 @@
     save() {
       localStorage.setItem(this.highScoreKey, this.highScore);
       localStorage.setItem(this.levelKey, this.level);
+      localStorage.setItem(this.solvedKey, this.solved);
     }
     // Reset the high score
     reset() {
       this.highScore = 0;
       this.level = 0;
+      this.solved = 0;
       this.save();
     }
   };
@@ -51,11 +61,13 @@
     constructor(highScoreManager2) {
       this.highScoreManager = highScoreManager2;
       this.highScoreDisplay = document.getElementById("high-score-display");
+      this.solvedDisplay = document.getElementById("solved-display");
       this.levelDisplay = document.getElementById("level-display");
     }
     // Update the high score UI
     updateHighScore() {
       this.highScoreDisplay.textContent = `High Score: ${this.highScoreManager.getHighScore()}`;
+      this.solvedDisplay.textContent = `Solved: ${this.highScoreManager.getSolved()}`;
       this.levelDisplay.textContent = `Level: ${this.highScoreManager.getLevel()}`;
     }
     // This will be called when the high score screen is opened
@@ -67,6 +79,7 @@
     constructor(highScoreManager2) {
       this.highScoreManager = highScoreManager2;
       this.scoreInput = document.getElementById("test-score-input");
+      this.solvedInput = document.getElementById("test-solved-input");
       this.levelInput = document.getElementById("test-level-input");
       this.setScoreBtn = document.getElementById("set-score-btn");
       this.resetTestHighScoreBtn = document.getElementById("reset-test-highscore");
@@ -76,9 +89,10 @@
     // Set a new score using the input value
     setScore() {
       const newScore = parseInt(this.scoreInput.value, 10);
+      const newSolved = parseInt(this.solvedInput.value, 10);
       const newLevel = parseInt(this.levelInput.value, 10);
       if (!isNaN(newScore) && !isNaN(newLevel)) {
-        this.highScoreManager.set(newScore, newLevel);
+        this.highScoreManager.set(newScore, newSolved, newLevel);
       }
       this.updateUI();
     }
@@ -89,6 +103,7 @@
     }
     updateUI() {
       this.scoreInput.value = this.highScoreManager.getHighScore();
+      this.solvedInput.value = this.highScoreManager.getSolved();
       this.levelInput.value = this.highScoreManager.getLevel();
     }
     // Called when the test screen is opened (if any setup is needed)
@@ -117,6 +132,7 @@
     }
     init() {
       this.score = 0;
+      this.solved = 0;
       this.exercises = [];
       this.level = 1;
       this.gameOver = false;
@@ -130,6 +146,7 @@
       this.init();
       this.gameUI.clearExercise();
       this.gameUI.updateScore();
+      this.gameUI.updateSolved();
       this.startLevel();
     }
     randomNum(min, max) {
@@ -142,8 +159,10 @@
         this.gameUI.playEffect(sounds_default.SUCCESS);
         this.exercises = this.exercises.filter((id) => id !== exerciseId);
         this.gameUI.removeExercise(exerciseId);
+        this.solved++;
         this.score += deltaScore;
         this.gameUI.updateScore();
+        this.gameUI.updateSolved();
         if (this.exercises.length)
           this.gameUI.setFocus(this.exercises[0]);
         if (this.exercises.length == 0)
@@ -228,6 +247,9 @@
     }
     updateLevel() {
       document.getElementById("level-value").textContent = this.game.level;
+    }
+    updateSolved() {
+      document.getElementById("solved-value").textContent = this.game.solved;
     }
     addExercise(e) {
       const exerciseId = `exercise-${++this.incId}`;
@@ -329,12 +351,14 @@
   var GameOverUI = class {
     constructor() {
       this.highScoreDisplay = document.getElementById("gameover-score-display");
+      this.solvedDisplay = document.getElementById("gameover-solved-display");
       this.levelDisplay = document.getElementById("gameover-level-display");
     }
     // This will be called when game over screen is opened
     onShow() {
       gameUI.playEffect(sounds_default.GAMEOVER);
       this.highScoreDisplay.textContent = game.score;
+      this.solvedDisplay.textContent = game.solved;
       this.levelDisplay.textContent = game.level;
     }
   };

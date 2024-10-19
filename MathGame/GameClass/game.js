@@ -14,6 +14,7 @@ class Game {
     init()
     {
         this.score = 0;
+        this.solved = 0;
         this.exercises = [];
         this.level = 1; //+parseInt((8000-this.initialSpawnRate)/500);
         this.gameOver = false;
@@ -30,6 +31,7 @@ class Game {
         this.init();
         this.gameUI.clearExercise();
         this.gameUI.updateScore();
+        this.gameUI.updateSolved();
         this.startLevel();
     }
     
@@ -46,8 +48,10 @@ class Game {
             this.gameUI.playEffect(Sound.SUCCESS);
             this.exercises = this.exercises.filter(id => id !== exerciseId);
             this.gameUI.removeExercise(exerciseId);
+            this.solved++;
             this.score += deltaScore;
             this.gameUI.updateScore();
+            this.gameUI.updateSolved();
             if (this.exercises.length)
                 this.gameUI.setFocus(this.exercises[0]);
             if (this.exercises.length==0)

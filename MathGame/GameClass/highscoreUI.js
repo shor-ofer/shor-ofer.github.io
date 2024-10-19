@@ -5,12 +5,14 @@ class HighScoreUI {
     constructor(highScoreManager) {
         this.highScoreManager = highScoreManager;
         this.highScoreDisplay = document.getElementById('high-score-display');
+        this.solvedDisplay = document.getElementById('solved-display');
         this.levelDisplay = document.getElementById('level-display');
     }
 
     // Update the high score UI
     updateHighScore() {
         this.highScoreDisplay.textContent = `High Score: ${this.highScoreManager.getHighScore()}`;
+        this.solvedDisplay.textContent = `Solved: ${this.highScoreManager.getSolved()}`;
         this.levelDisplay.textContent = `Level: ${this.highScoreManager.getLevel()}`;
     }
 
@@ -24,6 +26,7 @@ class TestHighScore {
     constructor(highScoreManager) {
         this.highScoreManager = highScoreManager;
         this.scoreInput = document.getElementById('test-score-input');
+        this.solvedInput = document.getElementById('test-solved-input');
         this.levelInput = document.getElementById('test-level-input');
         this.setScoreBtn = document.getElementById('set-score-btn');
         this.resetTestHighScoreBtn = document.getElementById('reset-test-highscore');
@@ -36,9 +39,10 @@ class TestHighScore {
     // Set a new score using the input value
     setScore() {
         const newScore = parseInt(this.scoreInput.value, 10);
+        const newSolved = parseInt(this.solvedInput.value, 10);
         const newLevel = parseInt(this.levelInput.value, 10);
         if (!isNaN(newScore) && !isNaN(newLevel)) {
-            this.highScoreManager.set(newScore,newLevel);
+            this.highScoreManager.set(newScore,newSolved,newLevel);
         }
         this.updateUI();
     }
@@ -51,6 +55,7 @@ class TestHighScore {
 
     updateUI() {
         this.scoreInput.value = this.highScoreManager.getHighScore();
+        this.solvedInput.value = this.highScoreManager.getSolved();
         this.levelInput.value = this.highScoreManager.getLevel();
     }
 

@@ -46,6 +46,10 @@ class GameUI {
     {
         document.getElementById('level-value').textContent = this.game.level;
     }
+    updateSolved()
+    {
+        document.getElementById('solved-value').textContent = this.game.solved;
+    }
 
     addExercise(e)  {
 

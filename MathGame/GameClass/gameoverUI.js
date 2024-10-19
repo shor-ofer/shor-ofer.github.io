@@ -5,6 +5,7 @@ class GameOverUI
 {
     constructor() {
         this.highScoreDisplay = document.getElementById('gameover-score-display');
+        this.solvedDisplay = document.getElementById('gameover-solved-display');
         this.levelDisplay = document.getElementById('gameover-level-display');
     }
 
@@ -12,6 +13,7 @@ class GameOverUI
     onShow() {
         gameUI.playEffect(Sound.GAMEOVER);
         this.highScoreDisplay.textContent = game.score;
+        this.solvedDisplay.textContent = game.solved;
         this.levelDisplay.textContent = game.level;
     }
 }

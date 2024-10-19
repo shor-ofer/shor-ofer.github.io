@@ -17,7 +17,7 @@
     <div id="open-screen" class="screen active">
         <h1>Math Game</h1>
         <ul>
-            <!-- <li><button onclick="showScreen('test-screen')">Test</button></li>  -->
+            <!-- <li><button onclick="showScreen('test-screen')">Test</button></li>   -->
             <li><button class="game-button" onclick="showScreen('game-screen')">Play</button></li>
             <li><button class="game-button" onclick="showScreen('highscore-screen')">High Score</button></li>
             <li><button class="game-button" onclick="showScreen('options-screen')">Options</button></li>
@@ -31,6 +31,7 @@
         <div class="highscore centerbox">
             <div>
               <p id="high-score-display"></p> <!-- Display the high score here -->
+              <p id="solved-display"></p> <!-- Display the high score here -->
               <p id="level-display"></p> <!-- Display the Level here -->
             </div>
         </div>
@@ -43,7 +44,7 @@
             <source id="mp3Effect" src="" type="audio/mpeg">
           </audio>    
         <div id="countdown-display" style="display: none;"></div> <!-- Countdown display -->
-        <p><div id="score-board">Score: <span id="score-value">0</span> | Level: <span id="level-value">1</span></div></p>
+        <p><div id="score-board">Score: <span id="score-value">0</span> | Solved: <span id="solved-value">0</span> | Level: <span id="level-value">1</span></div></p>
         <div id="game-container"></div>
     </div>
 
@@ -51,6 +52,7 @@
     <div id="gameover-screen" class="screen">
         <h1>Game Over</h1>
         <div class="gameover">Score:<span id="gameover-score-display"></span></div>
+        <div class="gameover">Solved:<span id="gameover-solved-display"></span></div>
         <div class="gameover">Level:<span id= "gameover-level-display"></span></div>
         <button class="game-button" onclick="showScreen('open-screen')">Back to Menu</button>
     </div>
@@ -95,6 +97,7 @@
     <div id="test-highscore-screen" class="screen">
         <h1>Test High Score Features</h1>
         <p>Enter Score: <input type="number" id="test-score-input"></p>
+        <p>Enter Solved: <input type="number" id="test-solved-input"></p>
         <p>Enter Level: <input type="number" id="test-level-input"></p>
         <button id="set-score-btn">Set Score And Level</button>
         <button id="reset-test-highscore">Reset High Score</button>
