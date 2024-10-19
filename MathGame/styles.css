@@ -68,7 +68,7 @@ button {
 
 .game-button:hover
 {
-    background-color: #436ee6;
+    background-color:  #7413c4;
 }
 
 
@@ -107,7 +107,10 @@ button {
     display: flex; /* Uses flexbox for layout */
     justify-content: center; /* Centers content horizontally */
     align-items: center; /* Centers content vertically */
+    font-size:1.5rem;
 }
+
+
 
 #countdown-display span {
     font-size: 4rem;
