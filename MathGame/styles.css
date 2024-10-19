@@ -121,11 +121,11 @@ button {
 
 
 #game-container {
-    margin: 20px auto;
-    width: 500px;
+    margin: 1rem auto;
+    width: 21rem;
     display: grid;
     grid-template-columns: 1fr 1fr;
-    grid-gap: 10px;
+    grid-gap: 1rem;
     text-align: left;
 
 }
