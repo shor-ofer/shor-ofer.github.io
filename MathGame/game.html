@@ -15,9 +15,9 @@
       </audio>    
     <!-- Open Screen -->
     <div id="open-screen" class="screen active">
-        <h1>Welcome to the Game</h1>
+        <h1>Math Game</h1>
         <ul>
-            <!-- <li><button onclick="showScreen('test-screen')">Test</button></li> -->
+            <!-- <li><button onclick="showScreen('test-screen')">Test</button></li>  -->
             <li><button class="game-button" onclick="showScreen('game-screen')">Play</button></li>
             <li><button class="game-button" onclick="showScreen('highscore-screen')">High Score</button></li>
             <li><button class="game-button" onclick="showScreen('options-screen')">Options</button></li>
@@ -58,9 +58,11 @@
     <!-- Options Screen -->
     <div id="options-screen" class="screen">
         <h1>Options</h1>
-        <button id="options-easy"   class="game-button">Easy</button>
-        <button id="options-medium" class="game-button">Medium</button>
-        <button id="options-hard"   class="game-button">Hard</button>
+        <p>
+            <button id="options-easy"   class="game-button">Easy</button>
+            <button id="options-medium" class="game-button">Medium</button>
+            <button id="options-hard"   class="game-button">Hard</button>
+        </p>
         <button class="game-button" onclick="showScreen('open-screen')">Back to Menu</button>
     </div>
 
