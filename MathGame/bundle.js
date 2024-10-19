@@ -140,7 +140,7 @@
         this.gameUI.playEffect(sounds_default.SUCCESS);
         this.exercises = this.exercises.filter((id) => id !== exerciseId);
         this.gameUI.removeExercise(exerciseId);
-        this.score++;
+        this.score += this.level;
         this.gameUI.updateScore();
         if (this.exercises.length)
           this.gameUI.setFocus(this.exercises[0]);
