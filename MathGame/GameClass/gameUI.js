@@ -136,6 +136,32 @@ class GameUI {
         e_snd.currentTime=0;  
     }
 
+    drawDeltaScore(exerciseId, deltascore) {
+        var targetElement = document.getElementById(exerciseId);
+        const floatingNumber = document.createElement('div');
+        floatingNumber.className = 'floatingNumber';
+        floatingNumber.innerText = `+${deltascore}`;
+        
+        // Position the floatingNumber relative to the target element
+        const rect = targetElement.getBoundingClientRect();
+        floatingNumber.style.left = `${rect.left + rect.width / 2}px`;
+        floatingNumber.style.top = `${rect.top}px`;
+        
+        document.body.appendChild(floatingNumber);
+        
+        // Animation: Move up and fade out
+        setTimeout(() => {
+            floatingNumber.style.transform = 'translateY(-30px)'; // Move up
+            floatingNumber.style.opacity = '0'; // Fade out
+        }, 0);
+        
+        // Remove the floatingNumber after the animation is complete
+        setTimeout(() => {
+            document.body.removeChild(floatingNumber);
+        }, 500);
+    }
+
+
 
 }
 

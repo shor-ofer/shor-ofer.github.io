@@ -41,10 +41,12 @@ class Game {
     {
         // Only increase score if the answer is correct
         if (playerAnswer === correctAnswer) {
+            var deltaScore = this.level;
+            this.gameUI.drawDeltaScore(exerciseId,deltaScore);
             this.gameUI.playEffect(Sound.SUCCESS);
             this.exercises = this.exercises.filter(id => id !== exerciseId);
             this.gameUI.removeExercise(exerciseId);
-            this.score+=this.level;
+            this.score += deltaScore;
             this.gameUI.updateScore();
             if (this.exercises.length)
                 this.gameUI.setFocus(this.exercises[0]);

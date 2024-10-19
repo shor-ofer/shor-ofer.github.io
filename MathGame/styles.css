@@ -227,3 +227,20 @@ input[type=number] {
   .small {
     font-size: 0.5rem;
   }
+
+
+  .floatingNumber {
+    position: absolute;
+    color: gold;
+    font-size: 2rem;
+    font-family: "Chango", sans-serif;
+    font-weight: 400;
+    font-style: normal;    
+    text-shadow:
+    2px 2px 0 #000,
+    -2px 2px 0 #000,
+    -2px -2px 0 #000,
+    2px -2px 0 #000;
+    transition: transform 1.0s ease, opacity 1.0s ease;
+    opacity: 1;
+}

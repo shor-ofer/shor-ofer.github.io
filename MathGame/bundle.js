@@ -137,10 +137,12 @@
     }
     checkAnswer(playerAnswer, exerciseId, correctAnswer) {
       if (playerAnswer === correctAnswer) {
+        var deltaScore = this.level;
+        this.gameUI.drawDeltaScore(exerciseId, deltaScore);
         this.gameUI.playEffect(sounds_default.SUCCESS);
         this.exercises = this.exercises.filter((id) => id !== exerciseId);
         this.gameUI.removeExercise(exerciseId);
-        this.score += this.level;
+        this.score += deltaScore;
         this.gameUI.updateScore();
         if (this.exercises.length)
           this.gameUI.setFocus(this.exercises[0]);
@@ -295,6 +297,23 @@
       var e_snd = document.getElementById("snd");
       e_snd.pause();
       e_snd.currentTime = 0;
+    }
+    drawDeltaScore(exerciseId, deltascore) {
+      var targetElement = document.getElementById(exerciseId);
+      const floatingNumber = document.createElement("div");
+      floatingNumber.className = "floatingNumber";
+      floatingNumber.innerText = `+${deltascore}`;
+      const rect = targetElement.getBoundingClientRect();
+      floatingNumber.style.left = `${rect.left + rect.width / 2}px`;
+      floatingNumber.style.top = `${rect.top}px`;
+      document.body.appendChild(floatingNumber);
+      setTimeout(() => {
+        floatingNumber.style.transform = "translateY(-30px)";
+        floatingNumber.style.opacity = "0";
+      }, 0);
+      setTimeout(() => {
+        document.body.removeChild(floatingNumber);
+      }, 500);
     }
   };
   var game = new game_default();
