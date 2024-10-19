@@ -212,6 +212,7 @@
       });
     }
     removeExercise(exerciseId) {
+      this.updateExercisesColor();
       document.getElementById(exerciseId).classList.add("fade-out");
       setTimeout(() => {
         document.getElementById(exerciseId).remove();
@@ -233,10 +234,19 @@
       div.id = exerciseId;
       div.innerHTML = `${e.num1} x ${e.num2} = <input id="answer" type="number" class="answer" data-answer="${e.answer}" data-id="${exerciseId}">`;
       this.gameContainer.appendChild(div);
+      this.updateExercisesColor();
       return exerciseId;
+    }
+    updateExercisesColor() {
+      var ratio = Math.max(0, this.game.exercises.length - 0 * this.game.initialExercises) / (this.game.maxExercises - 0 * this.game.initialExercises);
+      ratio = 1 - (1 - ratio) * (1 - ratio);
+      var val = ratio * (360 - 197) + 197;
+      var color = `hsl(${val}, 58%, 48%)`;
+      document.querySelector("#game-container").style.backgroundColor = color;
     }
     clearExercise() {
       this.gameContainer.innerHTML = "";
+      this.updateExercisesColor();
     }
     updateCountDown(count) {
       this.countdown = count;
@@ -258,6 +268,7 @@
     }
     // Called when the test screen is opened (if any setup is needed)
     onShow() {
+      this.game.init();
       this.startCountdown(this.game.start.bind(this.game));
     }
     playEffect(name) {

@@ -15,7 +15,7 @@ class Game {
     {
         this.score = 0;
         this.exercises = [];
-        this.level = 1;
+        this.level = 1; //+parseInt((8000-this.initialSpawnRate)/500);
         this.gameOver = false;
         this.spawnRate = this.initialSpawnRate; // Set spawn rate to 6 seconds for slower pace
         this.maxExercises = 10; // Game over when there are 10 exercises

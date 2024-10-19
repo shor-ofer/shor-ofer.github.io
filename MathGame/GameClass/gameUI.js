@@ -26,6 +26,7 @@ class GameUI {
 
     removeExercise(exerciseId)
     {
+        this.updateExercisesColor();
         document.getElementById(exerciseId).classList.add('fade-out');
         setTimeout(() => {
             document.getElementById(exerciseId).remove();
@@ -54,10 +55,22 @@ class GameUI {
         div.id = exerciseId;
         div.innerHTML = `${e.num1} x ${e.num2} = <input id="answer" type="number" class="answer" data-answer="${e.answer}" data-id="${exerciseId}">`;
         this.gameContainer.appendChild(div);
+        this.updateExercisesColor();
         return exerciseId;
+    }
+    updateExercisesColor() {
+        var ratio = Math.max(0,this.game.exercises.length-0*this.game.initialExercises) / (this.game.maxExercises-0*this.game.initialExercises) ;
+        ratio = 1-(1-ratio)*(1-ratio);
+        var val = ratio * (360-197) + 197;
+        var color = `hsl(${val}, 58%, 48%)`;
+        document.querySelector("#game-container").style.backgroundColor = color;
+        // document.querySelectorAll('.exercise').forEach(function(element) {
+        //     element.style.backgroundColor = color; // Set to your desired color
+        // });
     }
     clearExercise() {
         this.gameContainer.innerHTML="";
+        this.updateExercisesColor();
     }
 
     updateCountDown(count) {
@@ -66,7 +79,7 @@ class GameUI {
     }
 
     startCountdown(onCountDownFinishFunction) {
-        this.updateCountDown(3); // Reset countdown
+        this.updateCountDown(3); // Reset countfade-indown
         this.playEffect(Sound.COUNTDOWN);
         this.countdownDisplay.style.display = 'flex'; // Show countdown display
         clearInterval(this.intervalId);
@@ -87,6 +100,7 @@ class GameUI {
     // Called when the test screen is opened (if any setup is needed)
     onShow() {
         // Any additional UI setup for the test screen can go here
+        this.game.init();
         this.startCountdown(this.game.start.bind(this.game));
     }
     playEffect(name)

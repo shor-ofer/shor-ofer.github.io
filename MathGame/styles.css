@@ -101,6 +101,7 @@ button {
     text-align: center; /* Centers text */
     font-family: "Chango", sans-serif;
     font-style: normal;    
+    font-size:2rem;
 }
 
 .centerbox{
@@ -125,11 +126,13 @@ button {
 
 #game-container {
     margin: 1rem auto;
-    width: 21rem;
+    width: 23rem;
+    border-radius: 1rem;
     display: grid;
     grid-template-columns: 1fr 1fr;
     grid-gap: 1rem;
     text-align: left;
+    transition: all 0.8s
 
 }
 
@@ -139,10 +142,11 @@ button {
     border-radius: 1em; /* Round top-left and bottom-right corners */
     padding: 10px; /* Add some padding */
     margin: 10px; /* Add some space between exercises */
-    background-color: #1392c4; /* Light background for visibility */
+    background-color: hsl(197, 58%, 48%); /* Light background for visibility */
     box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3); /* Optional: add some shadow for depth */
-    transition: background-color 0.3s; /* Smooth transition for background color changes */
+    transition: background-color 0.8s; /* Smooth transition for background color changes */
     transition: opacity 0.3s; /* Smooth transition for opacity */
+    transition: all 0.8s
 }
 /* Chrome, Safari, Edge, Opera */
 input::-webkit-outer-spin-button,
@@ -165,6 +169,7 @@ input[type=number] {
 }
 
 .fade-out {
+    transition: opacity 0.3s;
     opacity: 0;
 }
 
