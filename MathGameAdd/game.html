@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Game Project</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Chango&display=swap" rel="stylesheet">    
+</head>
+<body>
+    <audio style="display:none" id ="snd" controls=""  name="media">
+        <source src="Assets/Roa - Traveler.mp3" type="audio/mpeg">
+      </audio>    
+    <!-- Open Screen -->
+    <div id="open-screen" class="screen active">
+        <h1>Math Game</h1>
+        <ul>
+            <!-- <li><button onclick="showScreen('test-screen')">Test</button></li>   -->
+            <li><button class="game-button" onclick="showScreen('game-screen')">Play</button></li>
+            <li><button class="game-button" onclick="showScreen('highscore-screen')">High Score</button></li>
+            <li><button class="game-button" onclick="showScreen('options-screen')">Options</button></li>
+            <li><button class="game-button" onclick="showScreen('range-screen')">Range</button></li>
+            <li><button class="game-button" onclick="showScreen('credit-screen')">Credits</button></li>
+        </ul>
+    </div>
+
+    <!-- High Score Screen -->
+    <div id="highscore-screen" class="screen">
+        <h1>High Scores</h1>
+        <div class="highscore centerbox">
+            <div>
+              <p id="high-score-display"></p> <!-- Display the high score here -->
+              <p id="solved-display"></p> <!-- Display the high score here -->
+              <p id="level-display"></p> <!-- Display the Level here -->
+            </div>
+        </div>
+        <button class="game-button" onclick="showScreen('open-screen')">Back to Menu</button>
+    </div>
+
+    <!-- Game Screen -->
+    <div id="game-screen" class="screen">
+        <audio style="display:none" id ="effect" controls=""  name="media">
+            <source id="mp3Effect" src="" type="audio/mpeg">
+          </audio>    
+        <div id="countdown-display" style="display: none;"></div> <!-- Countdown display -->
+        <p><div id="score-board">Score: <span id="score-value">0</span> | Solved: <span id="solved-value">0</span> | Level: <span id="level-value">1</span></div></p>
+        <div id="game-container"></div>
+    </div>
+
+    <!-- Game Over Screen -->
+    <div id="gameover-screen" class="screen">
+        <h1>Game Over</h1>
+        <div class="gameover">Score:<span id="gameover-score-display"></span></div>
+        <div class="gameover">Solved:<span id="gameover-solved-display"></span></div>
+        <div class="gameover">Level:<span id= "gameover-level-display"></span></div>
+        <button class="game-button" onclick="showScreen('open-screen')">Back to Menu</button>
+    </div>
+
+    <!-- Options Screen -->
+    <div id="options-screen" class="screen">
+        <h1>Options</h1>
+        <p>
+            <button id="options-easy"   class="game-button">Easy</button>
+            <button id="options-medium" class="game-button">Medium</button>
+            <button id="options-hard"   class="game-button">Hard</button>
+        </p>
+        <button class="game-button" onclick="showScreen('open-screen')">Back to Menu</button>
+    </div>
+
+    <!-- Range Screen -->
+    <div id="range-screen" class="screen">
+        <h1>Range</h1>
+        <div class="centerbox">
+            <table class="range" id="multiplicationTable"></table>        
+        </div>
+        <button class="game-button" onclick="showScreen('open-screen')">Back to Menu</button>
+    </div>
+
+    <!-- Credit Screen -->
+    <div id="credit-screen" class="screen">
+        <h1>Credits</h1>
+        <div class="credit large"><p>Game By Shor Ofer</p></div>
+        <div class="credit large"><p>Music : Roa - Traveler</p>
+            <p class="small">Watch: <a href='http://youtu.be/1y4fxrEqjAg'>http://youtu.be/1y4fxrEqjAg</a></p>
+            <p class="small">Stream / Download : <a href='https://hypeddit.com/roamusic/traveler'>https://hypeddit.com/roamusic/traveler</a></p>
+            <p class="small">License : <a href='http://roa-music.com/how-to-use'>http://roa-music.com/how-to-use</a></p>
+        </div>
+        <div class="credit large">
+            <p>Effects from Pixabay</p>
+            <p><a href="https://pixabay.com/sound-effects/?utm_source=link-attribution&utm_medium=referral&utm_campaign=music&utm_content=100761">Pixabay</a></p>
+        </div>
+        <button class="game-button" onclick="showScreen('open-screen')">Back to Menu</button>
+    </div>    
+
+    <!-- Test Screen -->
+    <div id="test-screen" class="screen">
+        <h1>Test</h1>
+        <ul>
+        <li><button onclick="showScreen('test-highscore-screen')">Test High Score Features</button></li>
+        <li><button class="game-button" onclick="showScreen('open-screen')">Back to Menu</button></li>
+        </ul>
+    </div>
+
+    <!-- Test HighScore Screen -->
+    <div id="test-highscore-screen" class="screen">
+        <h1>Test High Score Features</h1>
+        <p>Enter Score: <input type="number" id="test-score-input"></p>
+        <p>Enter Solved: <input type="number" id="test-solved-input"></p>
+        <p>Enter Level: <input type="number" id="test-level-input"></p>
+        <button id="set-score-btn">Set Score And Level</button>
+        <button id="reset-test-highscore">Reset High Score</button>
+        <button onclick="showScreen('highscore-screen')">Show High Score Screen</button>
+        <button onclick="showScreen('open-screen')">Back to Menu</button>
+    </div>
+
+    <script type="module" src="gamemanager.js"></script>
+</body>
+</html>

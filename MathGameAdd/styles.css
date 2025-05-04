@@ -1,0 +1,280 @@
+html {
+    height: 100%; /* Ensure the body and html take full height */
+    width:100%;
+    margin: 0 auto; /* Remove default margin */
+    padding: 0;
+}
+
+body {
+    height: 100%; /* Ensure the body and html take full height */
+    width:100%;
+    font-family: Arial, sans-serif;
+    text-align: center;
+    background-color: #0000c0;
+    color:yellow;
+    margin: 0 auto;
+    padding: 0;
+}
+
+h1 {
+    color:white;
+    margin-top: 50px;
+    font-size: 2rem;
+    font-family: "Chango", sans-serif;
+    font-weight: 400;
+    font-style: normal;    
+}
+
+ul {
+    list-style-type: none; /* Remove bullets/dots */
+    padding: 0; /* Remove default padding */
+    margin: 0; /* Remove default margin */
+}
+
+button {
+    margin: 1rem;
+    padding: 10px 20px;
+    font-size: 1rem;
+    cursor: pointer;
+}
+
+.screen {
+    display: none;
+}
+
+.screen.active {
+    display: block;
+}
+
+.game-button {
+    font-size: 3rem;
+    display : inline;
+    font-family: "Chango", sans-serif;
+    font-weight: 400;
+    font-style: normal;    
+    color: yellow; /* Text color */
+    text-shadow:
+    2px 2px 0 #000,
+    -2px 2px 0 #000,
+    -2px -2px 0 #000,
+    2px -2px 0 #000;
+    width:15rem;
+    min-width: 20rem;
+    max-width: 30rem;
+    background-color: #1392c4;
+    border-radius: 1rem;
+    
+}
+
+.game-button:hover
+{
+    background-color:  #7413c4;
+}
+
+
+.highscore
+{
+    font-family: "Chango", sans-serif;
+    font-weight: 400;
+    font-style: normal;    
+    font-size: 3rem;
+    border-radius:20px;
+    border-color: #1392c4;
+    border-width: 10px;
+    border-style: solid;
+    background-color: #0a475f;
+    margin:50px;
+}
+
+#countdown-display {
+    position: fixed; /* Fixes the position to the viewport */
+    top: 0; /* Aligns the top */
+    left: 0; /* Aligns the left */
+    width:100%;
+    height:100%;
+    display: flex; /* Uses flexbox for layout */
+    justify-content: center; /* Centers content horizontally */
+    align-items: center; /* Centers content vertically */
+    background-color: rgba(0, 0, 0, 0.7); /* Semi-transparent background */
+    color: white; /* Text color */
+    z-index: 1000; /* Ensures it appears above other elements */
+    text-align: center; /* Centers text */
+    font-family: "Chango", sans-serif;
+    font-style: normal;    
+    font-size:2rem;
+}
+
+.centerbox{
+    display: flex; /* Uses flexbox for layout */
+    justify-content: center; /* Centers content horizontally */
+    align-items: center; /* Centers content vertically */
+    font-size:1.5rem;
+}
+
+.range table {
+    width: 100%;
+    border-collapse: collapse; /* Ensures borders are collapsed into a single line */
+}
+
+.range td, th {
+    border: 1px solid rgb(3, 232, 248); /* Adds border to each cell */
+    padding: 3px;
+    text-align: center;
+    font-size:0.8em;
+}
+
+.range td.c1 {
+    background-color: rgb(104, 19, 86);
+}
+
+.range td.c1i {
+    background-color: rgb(199, 19, 73);
+}
+
+.range td.c2 {
+    background-color: rgb(157, 241, 202);
+}
+
+.range td.c2i {
+    background-color: rgb(104, 201, 109);
+}
+
+
+
+
+
+
+
+
+
+#countdown-display span {
+    font-size: 4rem;
+    color: yellow; /* Text color */
+    text-shadow:
+    3px 3px 0 #000,
+    -3px 3px 0 #000,
+    -3px -3px 0 #000,
+    3px -3px 0 #000;
+  }
+
+
+#game-container {
+    margin: 1rem auto;
+    width: 23rem;
+    border-radius: 1rem;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-gap: 1rem;
+    text-align: left;
+    transition: all 0.8s
+
+}
+
+.exercise {
+    width:8em;
+    border: 2px solid #4CAF50; /* Change border color as needed */
+    border-radius: 1em; /* Round top-left and bottom-right corners */
+    padding: 10px; /* Add some padding */
+    margin: 10px; /* Add some space between exercises */
+    background-color: hsl(197, 58%, 48%); /* Light background for visibility */
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3); /* Optional: add some shadow for depth */
+    transition: background-color 0.8s; /* Smooth transition for background color changes */
+    transition: opacity 0.3s; /* Smooth transition for opacity */
+    transition: all 0.8s
+}
+/* Chrome, Safari, Edge, Opera */
+input::-webkit-outer-spin-button,
+input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+/* Firefox */
+input[type=number] {
+  -moz-appearance: textfield;
+}
+
+.answer {
+    width: 3em;
+    font-size: 1em;
+    padding: 5px;
+    box-sizing: border-box; /* Prevent vertical scroll */
+    overflow: hidden; /* Prevent vertical scroll */
+}
+
+.fade-out {
+    transition: opacity 0.3s;
+    opacity: 0;
+}
+
+
+.gameover {
+    font-size: 3rem;
+    display : block;
+    font-family: "Chango", sans-serif;
+    font-weight: 400;
+    font-style: normal;    
+    color: yellow; /* Text color */
+   
+}
+
+.select {
+    background-color: #7413c4;
+}
+
+.credit{
+    margin: 20px;
+    border: 3px solid;
+    border-color: #1c629d;    
+    border-radius: 20px;
+    font-size: 0.5rem;
+    display : block;
+    font-family: "Chango", sans-serif;
+    font-weight: 400;
+    font-style: normal;    
+    color: yellow; /* Text color */
+
+}
+
+.credit a:link {
+    color: rgb(255, 174, 0);
+  }
+  
+  /* visited link */
+  .credit  a:visited {
+    color: rgb(145, 255, 0);
+  }
+  
+  /* mouse over link */
+  .credit  a:hover {
+    color: hsl(61, 84%, 49%);
+  }
+  
+  /* selected link */
+  .credit a:active {
+    color: #a6ff00;
+  }
+
+  .large {
+    font-size: 1rem;
+  }
+  .small {
+    font-size: 0.5rem;
+  }
+
+
+  .floatingNumber {
+    position: absolute;
+    color: gold;
+    font-size: 2rem;
+    font-family: "Chango", sans-serif;
+    font-weight: 400;
+    font-style: normal;    
+    text-shadow:
+    2px 2px 0 #000,
+    -2px 2px 0 #000,
+    -2px -2px 0 #000,
+    2px -2px 0 #000;
+    transition: transform 1.0s ease, opacity 1.0s ease;
+    opacity: 1;
+}
