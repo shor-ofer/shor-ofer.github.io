@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="he">
+<head>
+  <meta charset="UTF-8">
+  <title>Hebrew Spelling Practice</title>
+  <style>
+    /* General styles */
+    body { font-family: Arial, sans-serif; direction: rtl; text-align: center; padding: 20px; }
+    button { font-size: 20px; margin: 10px; cursor: pointer; }
+
+    /* Yellow text with black outline */
+    .yellow-text {
+      color: #FFD700; /* Yellow text */
+      text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000; /* Black outline */
+    }
+
+    /* Yellow button with black text */
+    .yellow-button {
+      background-color: #FFD700; /* Yellow background */
+      color: black; /* Black text */
+      border: 2px solid black; /* Black border */
+      border-radius: 5px;
+      padding: 10px 20px;
+    }
+
+    .yellow-button:hover {
+      background-color: #FFC107; /* Slightly darker yellow on hover */
+    }
+
+    /* Blue container with yellow text */
+    .blue-container {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      margin: 0 auto;
+      padding: 20px;
+      background-color: #007BFF; /* Nice blue background */
+      border-radius: 15px; /* Rounded corners */
+      color: #FFD700; /* Yellow text */
+      font-size: 20px;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); /* Optional shadow for better appearance */
+      max-width: 50rem; /* Limit the width of the box */
+      text-align: center;
+    }
+
+    /* Progress bar styles */
+    #progressBarContainer {
+      background-color: #ddd;
+      width: 80%;
+      margin: 10px auto;
+      height: 20px;
+      border-radius: 10px;
+    }
+
+    #progressBar {
+      background-color: #4caf50;
+      width: 0%;
+      height: 100%;
+      border-radius: 10px;
+    }
+  </style>
+</head>
+<body>
+  <h1>תרגול איות בעברית</h1>
+
+  <!-- Opening Screen -->
+  <div id="openingScreen" class="blue-container">
+    <h2 class="yellow-text">ברוכים הבאים לתרגול איות בעברית</h2>
+    <button onclick="startTraining()" class="yellow-button">התחל תרגול</button>
+    <button onclick="testAudio()" class="yellow-button">בדוק שמע</button>
+  </div>
+
+  <!-- Audio Test Screen -->
+  <div id="audioTestScreen" class="blue-container" style="display: none;">
+    <h2 class="yellow-text">בדיקת שמע</h2>
+    <button onclick="playTestAudio()" class="yellow-button">לחץ כאן לבדוק שמע</button>
+    <p id="audioTestMessage" style="margin-top: 20px;"></p>
+    <button onclick="showAudioHelp()" class="yellow-button">לא שומעים? לחץ כאן</button>
+    <button onclick="returnToOpeningScreen()" class="yellow-button">חזור</button>
+  </div>
+
+  <!-- Audio Help Screen -->
+  <div id="audioHelpScreen" class="blue-container" style="display: none;">
+    <h2 class="yellow-text">עזרה בהתקנת חבילת שפה</h2>
+    <p>כדי לשמוע את המילים, יש להתקין את חבילת השפה העברית:</p>
+    <ol style="text-align: left; color: #FFD700;">
+      <li>פתח את הגדרות המחשב שלך.</li>
+      <li>גש לקטגוריית "שפה ואזור".</li>
+      <li>הוסף את השפה העברית והתקן את חבילת השפה.</li>
+      <li>ודא שהשמע פועל על המחשב שלך.</li>
+    </ol>
+    <button onclick="returnToOpeningScreen()" class="yellow-button">חזור</button>
+  </div>
+
+  <!-- Training and Game Screens -->
+  <div id="wordList" class="blue-container" style="display: none;">
+    <h2 class="yellow-text">המילים לתרגול</h2>
+    <div id="wordListContainer" style="width: 100%;"></div>
+    <button onclick="startTest()" class="yellow-button" style="margin-top: 20px;">🔊 התחל תרגול</button>
+  </div>
+  <div id="game" class="blue-container" style="display: none;">
+    <p id="instruction">לחץ על כפתור "שמע מילה" והקלד את מה ששמעת.</p>
+    <p id="progressText">מילה <span id="currentWordIndex">1</span> מתוך <span id="totalWords">10</span></p>
+    <div id="progressBarContainer">
+      <div id="progressBar"></div>
+    </div>
+    <button onclick="speakWord()" class="yellow-button">🔊 שמע מילה</button><br>
+    <input id="wordInput" type="text" placeholder="כתוב את המילה כאן" style="font-size: 24px; text-align: center; margin: 10px;"><br>
+    <button onclick="submitAnswer()" class="yellow-button">שלח</button>
+  </div>
+  <div id="result" class="blue-container" style="display: none;">
+    <h2 id="resultScore" class="yellow-text"></h2>
+    <ul id="resultErrors" style="list-style: none; padding: 0; margin: 10px 0;"></ul>
+    <div id="resultButtons" style="margin-top: 20px;">
+      <!-- Buttons will be dynamically added here -->
+    </div>
+  </div>
+
+  <script>
+    NUM_WORDS = 3; // Number of words to practice 
+    const wordList = [
+      "כמו","אני","שלו","הוא","היה","עבור",
+      "להיות","אחד","יש לי",
+      "על ידי","מילה","אבל","כמה","הוא",
+    ]; // Example list, replace with full list
+    let selectedWords = [];
+    let currentWordIndex = 0;
+    let score = 0;
+    let userAnswers = [];
+    let incorrectWords = [];
+
+    function selectNRandom(array, n) {
+      for (let i = 0; i < n; i++) {
+        const j = Math.floor(Math.random() * (array.length - 1 - i)) + i + 1;
+        [array[i], array[j]] = [array[j], array[i]];
+      }
+    }
+
+    function shuffleArray(array) {
+      for (let i = array.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [array[i], array[j]] = [array[j], array[i]];
+      }
+    }
+
+    function initGame() {
+      selectNRandom(wordList, NUM_WORDS);
+      selectedWords = wordList.slice(0, NUM_WORDS);
+      currentWordIndex = 0;
+      score = 0;
+      userAnswers = [];
+      incorrectWords = [];
+      showWordList();
+    }
+
+    function showWordList() {
+      const wordListContainer = document.getElementById("wordListContainer");
+      wordListContainer.innerHTML = '';
+      selectedWords.forEach((word, index) => {
+        wordListContainer.innerHTML += `
+          <div style="display: flex; justify-content: space-between; align-items: center; width: 100%; margin: 5px 0;">
+            <span style="flex-grow: 1; text-align: left;">${word}</span>
+            <button onclick="playWord(${index})" class="yellow-button">▶</button>
+          </div>`;
+      });
+      //wordListContainer.innerHTML += `<button onclick="startTest()" class="yellow-button" style="margin-top: 20px;">🔊 התחל תרגול</button>`;
+      document.getElementById("wordList").style.display = "block";
+      document.getElementById("game").style.display = "none";
+      document.getElementById("result").innerHTML = '';
+    }
+
+    function playWord(index) {
+      const word = selectedWords[index];
+      const msg = new SpeechSynthesisUtterance(word);
+      msg.lang = 'he-IL';
+      speechSynthesis.speak(msg);
+    }
+
+    function startTest() {
+      shuffleArray(selectedWords); // Shuffle the words before starting the test
+      currentWordIndex = 0; // Reset the current word index
+      document.getElementById("wordList").style.display = "none";
+      document.getElementById("game").style.display = "block";
+      speakWord();
+    }
+
+    function updateProgress() {
+      const progressText = document.getElementById("progressText");
+      const progressBar = document.getElementById("progressBar");
+      const currentWordIndexElement = document.getElementById("currentWordIndex");
+      const totalWordsElement = document.getElementById("totalWords");
+
+      currentWordIndexElement.textContent = currentWordIndex + 1; // Update current word index
+      totalWordsElement.textContent = selectedWords.length; // Update total words
+      const progressPercentage = ((currentWordIndex + 1) / selectedWords.length) * 100;
+      progressBar.style.width = `${progressPercentage}%`; // Update progress bar width
+    }
+
+    function speakWord() {
+      const word = selectedWords[currentWordIndex];
+      const msg = new SpeechSynthesisUtterance(word);
+      msg.lang = 'he-IL';
+      speechSynthesis.speak(msg);
+      updateProgress(); // Update progress when a word is spoken
+    }
+
+    function submitAnswer() {
+      const userInput = document.getElementById("wordInput").value.trim();
+      const correctWord = selectedWords[currentWordIndex];
+      userAnswers.push({ input: userInput, correct: correctWord });
+
+      if (userInput === correctWord) {
+        score++;
+      } else {
+        incorrectWords.push(correctWord);
+      }
+
+      currentWordIndex++;
+      document.getElementById("wordInput").value = '';
+
+      if (currentWordIndex >= selectedWords.length) {
+        endGame();
+      } else {
+        speakWord();
+      }
+    }
+
+    function endGame() {
+      let resultHTML = `<h2 class="yellow-text">תוצאה: ${score} מתוך ${selectedWords.length}</h2><ul>`;
+      userAnswers.forEach((ans, i) => {
+        const isCorrect = ans.input === ans.correct;
+        resultHTML += `<li>מילה ${i + 1}: "${ans.correct}" — ${isCorrect ? '✅ נכון' : `❌ שגוי (כתבת "${ans.input}")`}</li>`;
+      });
+      resultHTML += '</ul>';
+
+      if (incorrectWords.length > 0) {
+        resultHTML += `<button onclick="retryIncorrect()" class="yellow-button">נסה שוב את המילים השגויות</button>`;
+      } else {
+        resultHTML += `<p>כל הכבוד! עברת את כל המילים בהצלחה!</p>`;
+        resultHTML += `<button onclick="initGame()" class="yellow-button">התחל סבב חדש</button>`;
+      }
+
+      document.getElementById('game').style.display = 'none';
+      document.getElementById('result').innerHTML = resultHTML;
+      document.getElementById('result').style.display = 'flex'; // Ensure the result section is visible
+    }
+
+    function retryIncorrect() {
+      selectedWords = incorrectWords;
+      currentWordIndex = 0;
+      score = 0;
+      userAnswers = [];
+      incorrectWords = [];
+      showWordList();
+    }
+
+    function startTraining() {
+      document.getElementById("openingScreen").style.display = "none";
+      initGame();
+    }
+
+    function testAudio() {
+      document.getElementById("openingScreen").style.display = "none";
+      document.getElementById("audioTestScreen").style.display = "flex";
+    }
+
+    function playTestAudio() {
+      const msg = new SpeechSynthesisUtterance("בדיקת שמע");
+      msg.lang = 'he-IL';
+      speechSynthesis.speak(msg);
+      document.getElementById("audioTestMessage").textContent = "אם שמעת את המילה, השמע פועל כראוי.";
+    }
+
+    function showAudioHelp() {
+      document.getElementById("audioTestScreen").style.display = "none";
+      document.getElementById("audioHelpScreen").style.display = "flex";
+    }
+
+    function returnToOpeningScreen() {
+      document.getElementById("audioTestScreen").style.display = "none";
+      document.getElementById("audioHelpScreen").style.display = "none";
+      document.getElementById("openingScreen").style.display = "flex";
+    }
+
+    // Start the game on load
+    window.onload = () => {
+      document.getElementById("openingScreen").style.display = "flex";
+    };
+  </script>
+</body>
+</html>
