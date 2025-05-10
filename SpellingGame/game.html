@@ -23,17 +23,25 @@
     .yellow-text {
       color: #FFD700; /* Yellow text */
       text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000; /* Black outline */
-      font-size: 2.5rem; /* Larger font size for headings and important text */
+      font-size: 3.5rem; /* Larger font size for headings and important text */
     }
+    .yellow-text2 {
+      color: #FFD700; /* Yellow text */
+      text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000; /* Black outline */
+      font-size: 3.5rem; /* Larger font size for headings and important text */
+      text-align:right;
+    }
+
 
     /* Yellow button with black text */
     .yellow-button {
       background-color: #FFD700; /* Yellow background */
       color: black; /* Black text */
       border: 2px solid black; /* Black border */
-      border-radius: 5px;
+      border-radius: 1rem;
       padding: 15px 30px; /* Increased padding for larger buttons */
       font-size: 4.5rem; /* Larger font size for buttons */
+      width:100%;
     }
 
     .yellow-button2 {
@@ -65,17 +73,21 @@
       box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); /* Optional shadow for better appearance */
       max-width: 50rem; /* Limit the width of the box */
       text-align: center;
+      height:80vh;
     }
 
     /* Input box styling */
     #wordInput {
-      font-size: 4rem; /* Larger font size for input box */
+      display: flex;
+      flex-direction: column;
+      font-size: 5rem; /* Larger font size for input box */
       text-align: center;
-      margin: 10px;
+      margin: 50px auto;
       padding: 10px;
       width: 80%; /* Make the input box wider */
       border: 2px solid black;
       border-radius: 5px;
+      width:95%;
     }
 
     /* Progress bar styles */
@@ -83,7 +95,7 @@
       background-color: #ddd;
       width: 80%;
       margin: 10px auto;
-      height: 30px; /* Increased height for the progress bar */
+      height: 50px; /* Increased height for the progress bar */
       border-radius: 10px;
     }
 
@@ -117,6 +129,10 @@
   </style>
 </head>
 <body>
+  <audio style="display:none" id ="effect" controls=""  name="media">
+    <source id="mp3Effect" src="" type="audio/mpeg">
+  </audio>    
+
   <h1>תרגול איות בעברית</h1>
 
   <!-- Opening Screen -->
@@ -124,22 +140,40 @@
     <h2 class="yellow-text">ברוכים הבאים לתרגול איות בעברית</h2>
     <button onclick="startTraining()" class="yellow-button">התחל תרגול</button>
     <button onclick="testAudio()" class="yellow-button">בדוק שמע</button>
+    <button onclick="showCredit()" class="yellow-button">תודות</button>
   </div>
+ 
 
   <!-- Audio Test Screen -->
   <div id="audioTestScreen" class="blue-container" style="display: none;">
     <h2 class="yellow-text">בדיקת שמע</h2>
     <button onclick="playTestAudio()" class="yellow-button">לחץ כאן לבדוק שמע</button>
-    <p id="audioTestMessage" style="margin-top: 20px;"></p>
+    <p id="audioTestMessage" class="yellow-text" style="margin-top: 20px;"></p>
     <button onclick="showAudioHelp()" class="yellow-button">לא שומעים? לחץ כאן</button>
     <button onclick="returnToOpeningScreen()" class="yellow-button">חזור</button>
   </div>
 
+  <!-- Credit Screen -->
+  <div id="creditScreen" class="blue-container" style="display: none;">
+    <h2 class="yellow-text">תודות</h2>
+
+    <div class="yellow-text"><p>Game By Shor Ofer</p></div>
+    <div class="yellow-text">
+        <p>Effects from Pixabay</p>
+        <p><a href="https://pixabay.com/sound-effects/?utm_source=link-attribution&utm_medium=referral&utm_campaign=music&utm_content=100761">Pixabay</a></p>
+    </div>
+
+
+
+    <button onclick="returnToOpeningScreen()" class="yellow-button">חזור</button>
+  </div>
+
+
   <!-- Audio Help Screen -->
   <div id="audioHelpScreen" class="blue-container" style="display: none;">
     <h2 class="yellow-text">עזרה בהתקנת חבילת שפה</h2>
-    <p>כדי לשמוע את המילים, יש להתקין את חבילת השפה העברית:</p>
-    <ol style="text-align: left; color: #FFD700;">
+    <p class="yellow-text2">כדי לשמוע את המילים, יש להתקין את חבילת השפה העברית:</p>
+    <ol class="yellow-text2" style="text-align: right; color: #FFD700;">
       <li>פתח את הגדרות המחשב שלך.</li>
       <li>גש לקטגוריית "שפה ואזור".</li>
       <li>הוסף את השפה העברית והתקן את חבילת השפה.</li>
@@ -159,7 +193,7 @@
     <p id="progressText" class="yellow-text">מילה <span id="currentWordIndex">1</span> מתוך <span id="totalWords">10</span></p>
     <div id="progressBarContainer">
       <div id="progressBar"></div>
-    </div>
+    </div><br>
     <button onclick="speakWord()" class="yellow-button">🔊 שמע מילה</button><br>
     <input id="wordInput" type="text" placeholder="כתוב את המילה כאן"><br>
     <button onclick="submitAnswer()" class="yellow-button">שלח</button>
@@ -175,7 +209,7 @@
   <script>
     NUM_WORDS = 10; // Number of words to practice 
     const wordList = [
-      "כמו","אני","שלו","הוא","היה","עבור",
+    "כמו","אני","שלו","הוא","היה","עבור",
       "להיות","אחד","יש לי",
       "על ידי","מילה","אבל","כמה","הוא",
       "אתה","היה לי","עבור",
@@ -300,6 +334,7 @@
       "רעש","רמה","סיכוי","לאסוף","חנות","מתיחה","לזרוק","ברק",
       "רכוש","טור","מולקולה","בחר","לא נכון","אפור","חוזר","דורש",
       "רחב","להכין","מלח","האף","לשון רבים","כעס","טענה","יבשת"
+
     ]; // Example list, replace with full list
     let selectedWords = [];
     let currentWordIndex = 0;
@@ -346,6 +381,23 @@
       document.getElementById("game").style.display = "none";
       document.getElementById("result").innerHTML = '';
     }
+
+
+    function playEffect(name) {
+      var e_effect = document.getElementById("effect");
+      var audio = document.getElementById("mp3Effect");
+      audio.src = name;
+      e_effect.load();
+      e_effect.sorce;
+      e_effect.volume = 0.5;
+      e_effect.play().catch((error) => {
+      });
+    }
+    function stopEffect() {
+      var e_effect = document.getElementById("effect");
+      e_effect.pause();
+      e_effect.currentTime = 0;
+    }    
 
     function playWord(index) {
       const word = selectedWords[index];
@@ -404,18 +456,26 @@
     }
 
     function endGame() {
-      let resultHTML = `<h2 class="yellow-text">תוצאה: ${score} מתוך ${selectedWords.length}</h2><ul>`;
-      userAnswers.forEach((ans, i) => {
-        const isCorrect = ans.input === ans.correct;
-        resultHTML += `<li class="yellow-text">מילה ${i + 1}: "${ans.correct}" — ${isCorrect ? '✅ נכון' : `❌ שגוי (כתבת "${ans.input}")`}</li>`;
-      });
-      resultHTML += '</ul>';
+      let resultHTML = `<h2 class="yellow-text">תוצאה: ${score} מתוך ${selectedWords.length}</h2>`;
+
+      if (incorrectWords.length > 0)
+      {
+        resultHTML += `<ul>`;
+        userAnswers.forEach((ans, i) => {
+         const isCorrect = ans.input === ans.correct;
+         resultHTML += `<li class="yellow-text2">"${ans.correct}" — ${isCorrect ? '✅' : `❌ "${ans.input}"`}</li>`;
+        });
+        resultHTML += '</ul>';
+      }
+
+      playEffect("assets/success-fanfare-trumpets-6185.mp3");
 
       if (incorrectWords.length > 0) {
         resultHTML += `<button onclick="retryIncorrect()" class="yellow-button">נסה שוב את המילים השגויות</button>`;
       } else {
-        resultHTML += `<p>כל הכבוד! עברת את כל המילים בהצלחה!</p>`;
-        resultHTML += `<button onclick="initGame()" class="yellow-button">התחל סבב חדש</button>`;
+        resultHTML += `<p class = "yellow-text">כל הכבוד! עברת את כל המילים בהצלחה!</p>`;
+        resultHTML += `<img src="assets/win.png" alt="Win" style="width: 50rem; height: 50rem;">`;
+        resultHTML += `<button onclick="stopEffect();initGame()" class="yellow-button">התחל סבב חדש</button>`;
       }
 
       document.getElementById('game').style.display = 'none';
@@ -442,6 +502,13 @@
       document.getElementById("audioTestScreen").style.display = "flex";
     }
 
+    function showCredit() {
+      document.getElementById("openingScreen").style.display = "none";
+      document.getElementById("creditScreen").style.display = "flex";
+
+    }
+
+
     function playTestAudio() {
       const msg = new SpeechSynthesisUtterance("בדיקת שמע");
       msg.lang = 'he-IL';
@@ -457,7 +524,9 @@
     function returnToOpeningScreen() {
       document.getElementById("audioTestScreen").style.display = "none";
       document.getElementById("audioHelpScreen").style.display = "none";
+      document.getElementById("creditScreen").style.display = "none";
       document.getElementById("openingScreen").style.display = "flex";
+
     }
 
     // Start the game on load
@@ -467,3 +536,4 @@
   </script>
 </body>
 </html>
+``` 
