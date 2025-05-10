@@ -73,8 +73,8 @@
       box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); /* Optional shadow for better appearance */
       max-width: 50rem; /* Limit the width of the box */
       text-align: center;
-      height:80vh;
     }
+      /*height:80vh;*/
 
     /* Input box styling */
     #wordInput {
@@ -195,7 +195,7 @@
       <div id="progressBar"></div>
     </div><br>
     <button onclick="speakWord()" class="yellow-button">🔊 שמע מילה</button><br>
-    <input id="wordInput" type="text" placeholder="כתוב את המילה כאן"><br>
+    <input id="wordInput" type="text" placeholder="כתוב את המילה כאן">
     <button onclick="submitAnswer()" class="yellow-button">שלח</button>
   </div>
   <div id="result" class="blue-container" style="display: none;">
@@ -380,6 +380,7 @@
       document.getElementById("wordList").style.display = "block";
       document.getElementById("game").style.display = "none";
       document.getElementById("result").innerHTML = '';
+      document.getElementById("result").style.display = "none";
     }
 
 
@@ -431,6 +432,7 @@
       const msg = new SpeechSynthesisUtterance(word);
       msg.lang = 'he-IL';
       speechSynthesis.speak(msg);
+      document.getElementById("wordInput").focus();
       updateProgress(); // Update progress when a word is spoken
     }
 
@@ -468,11 +470,11 @@
         resultHTML += '</ul>';
       }
 
-      playEffect("assets/success-fanfare-trumpets-6185.mp3");
 
       if (incorrectWords.length > 0) {
         resultHTML += `<button onclick="retryIncorrect()" class="yellow-button">נסה שוב את המילים השגויות</button>`;
       } else {
+        playEffect("assets/success-fanfare-trumpets-6185.mp3");
         resultHTML += `<p class = "yellow-text">כל הכבוד! עברת את כל המילים בהצלחה!</p>`;
         resultHTML += `<img src="assets/win.png" alt="Win" style="width: 50rem; height: 50rem;">`;
         resultHTML += `<button onclick="stopEffect();initGame()" class="yellow-button">התחל סבב חדש</button>`;
@@ -536,3 +538,4 @@
   </script>
 </body>
 </html>
+
