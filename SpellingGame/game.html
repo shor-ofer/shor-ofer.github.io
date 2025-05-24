@@ -140,20 +140,11 @@
   <div id="openingScreen" class="blue-container">
     <h2 class="yellow-text">ברוכים הבאים לתרגול איות בעברית</h2>
     <button onclick="startTraining()" class="yellow-button">התחל תרגול</button>
-    <!-- <button onclick="testAudio()" class="yellow-button">בדוק שמע</button> -->
+    <button onclick="showWins()" class="yellow-button">הצג נצחונות</button> 
     <button onclick="showCredit()" class="yellow-button">תודות</button>
   </div>
  
-
-  <!-- Audio Test Screen -->
-  <div id="audioTestScreen" class="blue-container" style="display: none;">
-    <h2 class="yellow-text">בדיקת שמע</h2>
-    <button onclick="playTestAudio()" class="yellow-button">לחץ כאן לבדוק שמע</button>
-    <p id="audioTestMessage" class="yellow-text" style="margin-top: 20px;"></p>
-    <button onclick="showAudioHelp()" class="yellow-button">לא שומעים? לחץ כאן</button>
-    <button onclick="returnToOpeningScreen()" class="yellow-button">חזור</button>
-  </div>
-
+ 
   <!-- Credit Screen -->
   <div id="creditScreen" class="blue-container" style="display: none;">
     <h2 class="yellow-text">תודות</h2>
@@ -181,6 +172,15 @@
       <li>ודא שהשמע פועל על המחשב שלך.</li>
     </ol>
     <button onclick="returnToOpeningScreen()" class="yellow-button">חזור</button>
+  </div>
+
+
+  <div id="winDisplayScreen" class="blue-container" style="display: none;">
+    <div id="winDisplayContainer">
+    </div>
+    <button class="yellow-button" onclick="resetWins()">נקה רשימה</button>
+    <button class="yellow-button" onclick="returnToOpeningScreen()">חזור</button>
+
   </div>
 
   <!-- Training and Game Screens -->
@@ -216,6 +216,45 @@
     let score = 0;
     let userAnswers = [];
     let incorrectWords = [];
+
+function addWin() {
+    const today = new Date().toISOString().split("T")[0]; // yyyy-mm-dd
+    const wins = JSON.parse(localStorage.getItem("dailyWins") || "{}");
+
+    wins[today] = (wins[today] || 0) + 1;
+    localStorage.setItem("dailyWins", JSON.stringify(wins));
+
+    updateWinsDisplay();
+  }
+
+  function updateWinsDisplay() {
+    const wins = JSON.parse(localStorage.getItem("dailyWins") || "{}");
+    const oldWins = parseInt(localStorage.getItem("oldWins") || "0");
+
+    let html = `<h2 class="yellow-text">ניצחונות לפי ימים</h2><table style="color:white; font-size:2rem; margin:auto;"><tr><th>תאריך</th><th>ניצחונות</th></tr>`;
+    for (const date in wins) {
+      html += `<tr><td>${date}</td><td>${wins[date]}</td></tr>`;
+    }
+    html += `</table>`;
+
+    html += `<p class="yellow-text" style="margin-top:2rem;">🥇 סה"כ ניצחונות ישנים: ${oldWins}</p>`;
+    let container = document.getElementById("winDisplayContainer");
+    container.innerHTML = html;
+  }
+
+  function resetWins() {
+    const wins = JSON.parse(localStorage.getItem("dailyWins") || "{}");
+    const total = Object.values(wins).reduce((sum, val) => sum + val, 0);
+    const oldWins = parseInt(localStorage.getItem("oldWins") || "0");
+
+    localStorage.setItem("oldWins", oldWins + total);
+    localStorage.removeItem("dailyWins");
+
+    updateWinsDisplay();
+  }
+
+  // Call this once when the page loads
+  
 
     async function loadMap() {
       let wordMap = [];
@@ -377,6 +416,10 @@ async function playWord(index) {
 
     function submitAnswer() {
       const userInput = document.getElementById("wordInput").value.trim();
+      if (userInput === '') {
+        playEffect("assets/error-4-199275.mp3");
+        return;
+      }
       const correctWord = selectedWords[currentWordIndex];
       userAnswers.push({ input: userInput, correct: correctWord });
 
@@ -413,6 +456,7 @@ async function playWord(index) {
       if (incorrectWords.length > 0) {
         resultHTML += `<button onclick="retryIncorrect()" class="yellow-button">נסה שוב את המילים השגויות</button>`;
       } else {
+        addWin(); // Add a win if all words were answered correctly
         playEffect("assets/success-fanfare-trumpets-6185.mp3");
         resultHTML += `<p class = "yellow-text">כל הכבוד! עברת את כל המילים בהצלחה!</p>`;
         resultHTML += `<img src="assets/win.png" alt="Win" style="width: 50rem; height: 50rem;">`;
@@ -438,9 +482,9 @@ async function playWord(index) {
       initGame();
     }
 
-    function testAudio() {
+    function showWins() {
       document.getElementById("openingScreen").style.display = "none";
-      document.getElementById("audioTestScreen").style.display = "flex";
+      document.getElementById("winDisplayScreen").style.display = "flex";
     }
 
     function showCredit() {
@@ -449,22 +493,8 @@ async function playWord(index) {
 
     }
 
-
-    function playTestAudio() {
-      const msg = new SpeechSynthesisUtterance("בדיקת שמע");
-      msg.lang = 'he-IL';
-      speechSynthesis.speak(msg);
-      document.getElementById("audioTestMessage").textContent = "אם שמעת את המילה, השמע פועל כראוי.";
-    }
-
-    function showAudioHelp() {
-      document.getElementById("audioTestScreen").style.display = "none";
-      document.getElementById("audioHelpScreen").style.display = "flex";
-    }
-
     function returnToOpeningScreen() {
-      document.getElementById("audioTestScreen").style.display = "none";
-      document.getElementById("audioHelpScreen").style.display = "none";
+      document.getElementById("winDisplayScreen").style.display = "none";
       document.getElementById("creditScreen").style.display = "none";
       document.getElementById("openingScreen").style.display = "flex";
 
@@ -479,6 +509,8 @@ async function playWord(index) {
           submitAnswer();  // Call the function when Enter is pressed
         }
       });      
+      updateWinsDisplay();    
+
     };
   </script>
 </body>
