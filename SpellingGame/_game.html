@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="he">
+<head>
+  <meta charset="UTF-8">
+  <title>Hebrew Spelling Practice</title>
+  <style>
+    /* General styles */
+    body {
+      font-family: Arial, sans-serif;
+      direction: rtl;
+      text-align: center;
+      padding: 20px;
+      font-size: 20px; /* Base font size */
+    }
+
+    button {
+      font-size: 1.5rem; /* Larger relative font size for buttons */
+      margin: 10px;
+      cursor: pointer;
+    }
+
+    /* Yellow text with black outline */
+    .yellow-text {
+      color: #FFD700; /* Yellow text */
+      text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000; /* Black outline */
+      font-size: 3.5rem; /* Larger font size for headings and important text */
+    }
+    .yellow-text2 {
+      color: #FFD700; /* Yellow text */
+      text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000; /* Black outline */
+      font-size: 3.5rem; /* Larger font size for headings and important text */
+      text-align:right;
+    }
+
+
+    /* Yellow button with black text */
+    .yellow-button {
+      background-color: #FFD700; /* Yellow background */
+      color: black; /* Black text */
+      border: 2px solid black; /* Black border */
+      border-radius: 1rem;
+      padding: 15px 30px; /* Increased padding for larger buttons */
+      font-size: 4.5rem; /* Larger font size for buttons */
+      width:100%;
+    }
+
+    .yellow-button2 {
+      background-color: #FFD700; /* Yellow background */
+      color: black; /* Black text */
+      border: 2px solid black; /* Black border */
+      border-radius: 5px;
+      padding: 15px 30px; /* Increased padding for larger buttons */
+      font-size: 2.5rem; /* Larger font size for buttons */
+    }
+    
+
+    .yellow-button:hover {
+      background-color: #FFC107; /* Slightly darker yellow on hover */
+    }
+
+    /* Blue container with yellow text */
+    .blue-container {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      margin: 0 auto;
+      padding: 30px; /* Increased padding for larger containers */
+      background-color: #007BFF; /* Nice blue background */
+      border-radius: 15px; /* Rounded corners */
+      color: #FFD700; /* Yellow text */
+      font-size: 1.5rem; /* Larger font size for container text */
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); /* Optional shadow for better appearance */
+      max-width: 50rem; /* Limit the width of the box */
+      text-align: center;
+    }
+      /*height:80vh;*/
+
+    /* Input box styling */
+    #wordInput {
+      display: flex;
+      flex-direction: column;
+      font-size: 5rem; /* Larger font size for input box */
+      text-align: center;
+      margin: 50px auto;
+      padding: 10px;
+      width: 80%; /* Make the input box wider */
+      border: 2px solid black;
+      border-radius: 5px;
+      width:95%;
+    }
+
+    /* Progress bar styles */
+    #progressBarContainer {
+      background-color: #ddd;
+      width: 80%;
+      margin: 10px auto;
+      height: 50px; /* Increased height for the progress bar */
+      border-radius: 10px;
+    }
+
+    #progressBar {
+      background-color: #4caf50;
+      width: 0%;
+      height: 100%;
+      border-radius: 10px;
+    }
+
+    /* Responsive styles for mobile */
+    @media (max-width: 768px) {
+      body {
+        font-size: 18px; /* Slightly smaller base font size for mobile */
+      }
+
+      .yellow-button {
+        font-size: 1.2rem; /* Slightly smaller buttons on mobile */
+        padding: 12px 24px; /* Adjust padding for smaller screens */
+      }
+
+      .blue-container {
+        padding: 20px; /* Reduce padding for smaller screens */
+        font-size: 1.2rem; /* Adjust font size for mobile */
+      }
+
+      #progressBarContainer {
+        width: 90%; /* Make progress bar wider on smaller screens */
+      }
+    }
+  </style>
+</head>
+<body>
+  <audio style="display:none" id ="effect" controls=""  name="media">
+    <source id="mp3Effect" src="" type="audio/mpeg">
+  </audio>    
+
+  <h1>תרגול איות בעברית</h1>
+
+  <!-- Opening Screen -->
+  <div id="openingScreen" class="blue-container">
+    <h2 class="yellow-text">ברוכים הבאים לתרגול איות בעברית</h2>
+    <button onclick="startTraining()" class="yellow-button">התחל תרגול</button>
+    <button onclick="testAudio()" class="yellow-button">בדוק שמע</button>
+    <button onclick="showCredit()" class="yellow-button">תודות</button>
+  </div>
+ 
+
+  <!-- Audio Test Screen -->
+  <div id="audioTestScreen" class="blue-container" style="display: none;">
+    <h2 class="yellow-text">בדיקת שמע</h2>
+    <button onclick="playTestAudio()" class="yellow-button">לחץ כאן לבדוק שמע</button>
+    <p id="audioTestMessage" class="yellow-text" style="margin-top: 20px;"></p>
+    <button onclick="showAudioHelp()" class="yellow-button">לא שומעים? לחץ כאן</button>
+    <button onclick="returnToOpeningScreen()" class="yellow-button">חזור</button>
+  </div>
+
+  <!-- Credit Screen -->
+  <div id="creditScreen" class="blue-container" style="display: none;">
+    <h2 class="yellow-text">תודות</h2>
+
+    <div class="yellow-text"><p>Game By Shor Ofer</p></div>
+    <div class="yellow-text">
+        <p>Effects from Pixabay</p>
+        <p><a href="https://pixabay.com/sound-effects/?utm_source=link-attribution&utm_medium=referral&utm_campaign=music&utm_content=100761">Pixabay</a></p>
+    </div>
+
+
+
+    <button onclick="returnToOpeningScreen()" class="yellow-button">חזור</button>
+  </div>
+
+
+  <!-- Audio Help Screen -->
+  <div id="audioHelpScreen" class="blue-container" style="display: none;">
+    <h2 class="yellow-text">עזרה בהתקנת חבילת שפה</h2>
+    <p class="yellow-text2">כדי לשמוע את המילים, יש להתקין את חבילת השפה העברית:</p>
+    <ol class="yellow-text2" style="text-align: right; color: #FFD700;">
+      <li>פתח את הגדרות המחשב שלך.</li>
+      <li>גש לקטגוריית "שפה ואזור".</li>
+      <li>הוסף את השפה העברית והתקן את חבילת השפה.</li>
+      <li>ודא שהשמע פועל על המחשב שלך.</li>
+    </ol>
+    <button onclick="returnToOpeningScreen()" class="yellow-button">חזור</button>
+  </div>
+
+  <!-- Training and Game Screens -->
+  <div id="wordList" class="blue-container" style="display: none;">
+    <h2 class="yellow-text">המילים לתרגול</h2>
+    <div id="wordListContainer" style="width: 100%;"></div>
+    <button onclick="startTest()" class="yellow-button" style="margin-top: 20px;">🔊 התחל תרגול</button>
+  </div>
+  <div id="game" class="blue-container" style="display: none;">
+    <p id="instruction" class="yellow-text">לחץ על כפתור "שמע מילה" והקלד את מה ששמעת.</p>
+    <p id="progressText" class="yellow-text">מילה <span id="currentWordIndex">1</span> מתוך <span id="totalWords">10</span></p>
+    <div id="progressBarContainer">
+      <div id="progressBar"></div>
+    </div><br>
+    <button onclick="speakWord()" class="yellow-button">🔊 שמע מילה</button><br>
+    <input id="wordInput" type="text" placeholder="כתוב את המילה כאן">
+    <button onclick="submitAnswer()" class="yellow-button">שלח</button>
+  </div>
+  <div id="result" class="blue-container" style="display: none;">
+    <h2 id="resultScore" class="yellow-text"></h2>
+    <ul id="resultErrors" style="list-style: none; padding: 0; margin: 10px 0;"></ul>
+    <div id="resultButtons" style="margin-top: 20px;">
+      <!-- Buttons will be dynamically added here -->
+    </div>
+  </div>
+
+  <script>
+    NUM_WORDS = 10; // Number of words to practice 
+    const wordList = [
+    "כמו","אני","שלו","הוא","היה","עבור",
+      "להיות","אחד","יש לי",
+      "על ידי","מילה","אבל","כמה","הוא",
+      "אתה","היה לי","עבור",
+      "זמן","אנחנו","יכול","אחר","היו",
+      "לעשות","שלהם","זמן","יהיה","איך","אמר","בית",
+      "לספר","עושה","שלוש","רוצה","אוויר",
+      "לשחק","קטן","סוף","לשים","בית","לקרוא",
+      "נמל","גדול","לאיית","להוסיף","אפילו","ארץ","כאן","חייב",
+      "גדול","גבוה","כזה","מעקב","מעשה","מדוע","שואל","אנשים",
+      "לשנות","הלכתי","אור","סוג","צריך","בית","תמונה",
+      "לנסות","שלנו","שוב","חיה","נקודה","אמא","עולם","ליד",
+      "לבנות","עצמי","כדור הארץ","חדש","עבודה","חלק",
+      "לקחת","לקבל","מקום","עשיתי","לחיות","איפה","לאחר","בחזרה",
+      "קטן","עגול","גבר","שנה","הגיע","מופע",
+      "טוב","לתת","שלנו","תחת","מאוד","דרך",
+      "טופס","משפט","גדול","חושב","אומר","לעזור","נמוך",
+      "שורה","שונה","תור","סיבה","הרבה","אומר","לפני","מהלך",
+      "נכון","ילד","ישן","אותו","היא",
+      "כאשר","למעלה","שימוש","שלך","דרך","רבים",
+      "שלהם","לכתוב","היית","כמו","אלה","שלה","ארוך",
+      "לעשות","דבר","לראות","שלו","שנים","להסתכל","יותר",
+      "יום","יכול","ללכת","תבואו","עשיתי","מספר","נשמע",
+      "ביותר","אנשים","שלי","יודע","מים","מאשר","שיחה",
+      "ראשון","רשאי","למטה","היה","עכשיו","למצוא",
+      "ראש","לעמוד","צריך","מדינה","מצאתי","תשובה",
+      "בית ספר","לגדול","מחקר","עוד","ללמוד","צמח","כיסוי","מזון",
+      "שמש","ארבעה","בין","מדינה","לשמור","עין","אף פעם לא","אחרון",
+      "בואו","חשבתי","עיר","לחצות","החווה","קשה","התחלה",
+      "אולי","סיפור","מסור","רחוק","לצייר","עזב","מאוחר",
+      "לרוץ","תוך","עיתונות","קרוב","לילה","אמיתי","חיים",
+      "כמה","צפון","ספר","לשאת","לקחתי","מדע","לסעוד","חדר",
+      "חבר","החל","רעיון","דגים","להפסיק","פעם אחת","בסיס",
+      "לשמוע","סוס","לחתוך","בטוח","לצפות","צבע","פנים",
+      "עיקרי","פתוח","נראה","יחד","הבא","לבן","ילדים","להתחיל",
+      "ללכת","דוגמא","להקל","נייר","קבוצה","תמיד","מוסיקה",
+      "אלה","שני","סימן","לעתים קרובות","מכתב","מייל","נהר",
+      "מכונית","רגליים","טיפול","שני","מספיק","מישור","ילדה","כרגיל",
+      "צעיר","מוכן","מעל","אי פעם","אדום","רשימה","למרות ש","להרגיש",
+      "דיבורים","ציפור","בקרוב","גוף","כלב","משפחה","ישיר","פוזה",
+      "לעזוב","שיר","למדוד","דלת","מוצר","שחור","קצר","ספרה",
+      "כיתה","רוח","שאלה","לקרות","מלא","ספינה","אזור","מחצית",
+      "רוק","כדי","דרום","בעיה","חתיכה","אמר לי","ידעתי",
+      "עובר","מאז","עליון","מלך","רחוב","אינץ","להכפיל",
+      "שום דבר","כמובן","להישאר","גלגל","מלא","כוח","כחול","אובייקט",
+      "להחליט","פני השטח","עמוק","ירח","רגל","מערכת","עסוק",
+      "מבחן","שיא","סירה","משותף","זהב","אפשרי","מטוס","במקום",
+      "יבש","פלא","צחוק","אלף","לפני","רצתי","לבדוק","משחק",
+      "צורה","להשוות","מתגעגע","הביא","חום","שלג","צמיג",
+      "להביא","רחוק","למלא","מזרח","לצייר","שפה","בין",
+      "יחידה","כוח","העיר","קנס","מסוים","לעוף","ליפול","להוביל",
+      "זעקה","אפל","מכונה","הערה","לחכות","תכנית","דמות","כוכב",
+      "תיבה","שם עצם","שדה","שאר","נכון","תוכל","קילו","עשיתי",
+      "יופי","כונן","עמד","להכיל","מול","ללמד","שבוע","סופי",
+      "נתתי","ירוק","מהיר","לפתח","אוקיינוס","חופשי",
+      "דקות","חזק","מיוחד","דעה","מאחור","ברור","זנב","לייצר",
+      "עובדה","חלל","שמע","הטוב ביותר","שעה","טוב יותר","נכון","במהלך",
+      "מאה","חמש","לזכור","צעד","מוקדם","להחזיק","מערב","קרקע",
+      "עניין","להגיע","מהר","פועל","לשיר","להקשיב","שולחן",
+      "נסיעה","פחות","בוקר","עשר","פשוט","כמה","תנועה","לקראת",
+      "מלחמה","שכבתי","נגד","דפוס","איטי","מרכז","אהבה","אדם",
+      "כסף","לשרת","להופיע","כביש","המפה","גשם","שלטון","למשול",
+      "למשוך","הודעה","קול","אנרגיה","ציד","סביר","מיטה",
+      "ביצה","נסיעה","מאמין","אולי","לבחור","פתאומי",
+      "לספור","רבוע","סיבה","משך","מייצג","אמנות","נושא","אזור",
+      "גודל","להשתנות","להתיישב","לדבר","משקל","כללי","קרח","עניין",
+      "המעגל","זוג","כולל","פער","הברה","הרגיש","גדול","כדור",
+      "בכל זאת","טיפה","בבוקר","נוכחי","כבד","ריקוד",
+      "מנוע","עמדה","זרוע","רחב","מפרש","חומר","חלק","יער",
+      "לשבת","מירוץ","חלון","חנות","הקיץ","רכבת","לישון","להוכיח",
+      "בודד","רגל","תרגיל","קיר","מלכוד","מאחל לי","שמים",
+      "לוח","שמחה","חורף","ישבתי","נכתב","פראי","מכשיר","שמר",
+      "זכוכית","דשא","פרה","עבודה","קצה","סימן","ביקור","האחרון",
+      "כיף","בהיר","מזג אוויר","חודש","מיליון","לשאת",
+      "גימור","שמח","מקווה","פרח","להלביש","מוזר","נעלם","מסחר",
+      "מנגינה","טיול","משרד","לקבל","שורה","מדויק","סמל",
+      "למות","לפחות","צרות","צעקה","אלא","כתבתי","זרע","טון",
+      "להצטרף","מציע","נקי","הפסקה","גברת","חצר","לעלות",
+      "מכה","שמן","לגעת","גדלתי","סנט","לערבב","צוות",
+      "חוט","עלות","איבדתי","חום","ללבוש","שווה","שלחתי",
+      "לבחור","נפלתי","להתאים","לזרום","הוגן","בנק","לאסוף","להציל",
+      "שליטה","עשרוני","אוזן","אחר","פרץ","מקרה","אמצע",
+      "להרוג","אגם","רגע","בקנה מידה","האביב","להתבונן",
+      "ילד","ישר","עיצור","אומה","מילון","חלב","מהירות","שיטה",
+      "איבר","לשלם","גיל","סעיף","שמלה","ענן","הפתעה","שקט",
+      "אבן","זעיר","טיפוס","מגניב","לעצב","עני","מגרש","ניסיון",
+      "תחתון","מפתח","ברזל","אחת","מקל","דירה","עשרים","עור",
+      "חיוך","קמט","חור","לקפוץ","תינוק","שמונה","כפר","נפגש",
+      "שורש","לקנות","להעלות","לפתור","מתכת","דחיפה","שבע",
+      "סעיף","שלישי","תהא","מוחזק","שיער","לתאר","טבח","רצפה",
+      "תוצאה","לשרוף","גבעה","בטוח","חתול","המאה","לשקול",
+      "סוג","החוק","קצת","החוף","עותק","ביטוי","שקט","גבוה",
+      "חול","אדמה","גליל","טמפרטורה","אצבע","תעשייה","ערך","מאבק",
+      "שקר","הכה","לרגש","טבעי","תצוגה","תחושה","הון","לא יהיה",
+      "כיסא","סכנה","פירות","עשיר","עבה","חיל","תהליך","פועל",
+      "בפועל","נפרד","קשה","רופא","בבקשה","להגן על","הצהריים","יבול",
+      "מודרני","אלמנט","פגע","סטודנט","פינה","מפלגה","אספקה","של מי",
+      "אתר","טבעת","אופי","חרקים","נתפס","התקופה","מצביע על","רדיו",
+      "דיברתי","אטום","אדם","היסטוריה","השפעה","חשמלי","מצפה","עצם",
+      "רכבת","להניח","לספק","מסכים","עדין","אישה","קפטן",
+      "מניח","הכרחי","כנף","ליצור","השכן","לשטוף","עטלף",
+      "ולא","קהל","תירס","להשוות","שיר","מחרוזת","פעמון","תלויים",
+      "בשר","לשפשף","צינור","מפורסם","דולר","זרם","פחד","מראה",
+      "משולש","כדור הארץ","למהר","ראשי","מושבה","שעון","שלי",
+      "עניבה","להיכנס","גדול","טרי","חיפוש","לשלוח","צהוב","אקדח",
+      "לאפשר","הדפסה","מקום","מדבר","חליפה","נוכחי","מעלית",
+      "עלה","להגיע","אדון","מסלול","הורה","החוף","החלוקה","גיליון",
+      "חומר","להעדיף","להתחבר","שלאחר","לבלות","אקורד","שומן","שמח",
+      "מקורי","מניה","תחנה","אבא","לחם","לחייב את","ראוי",
+      "הצעה","קטע","עבדים","ברווז","מיידי","שוק","תואר","לאכלס",
+      "חומוס","יקר","אויב","להגיב","משקה","להתרחש","תמיכה","נאום",
+      "טבע","טווח","קיטור","תנועה","נתיב","נוזל","להיכנס","התכוון",
+      "מנה","שיניים","פגז","צוואר","חמצן","סוכר","מוות",
+      "מיומנות","נשים","עונה","פתרון","מגנט","כסף","תודה","סניף",
+      "משחק","סיומת","במיוחד","תאנה","חושש","ענק","אחות","פלדה",
+      "לדון","קדימה","דומה","להנחות את","ניסיון","ציון","תפוח","קניתי",
+      "הוביל","המגרש","מעיל","מסה","כרטיס","להקה","חבל","תלוש",
+      "לנצח","לחלום","ערב","מצב","הזנה","כלי","סך הכל","בסיסי",
+      "ריח","עמק","ולא","כפול","מושב","להמשיך","בלוק","תרשים",
+      "כובע","למכור","הצלחה","חברה","להחסיר","אירוע","בפרט","עסקה",
+      "לשחות","טווח","ההפך","אישה","נעל","כתף","התפשטות","לסדר",
+      "מחנה","להמציא","כותנה","נולד","לקבוע","ליטר","תשע","משאית",
+      "רעש","רמה","סיכוי","לאסוף","חנות","מתיחה","לזרוק","ברק",
+      "רכוש","טור","מולקולה","בחר","לא נכון","אפור","חוזר","דורש",
+      "רחב","להכין","מלח","האף","לשון רבים","כעס","טענה","יבשת"
+
+    ]; // Example list, replace with full list
+    let selectedWords = [];
+    let currentWordIndex = 0;
+    let score = 0;
+    let userAnswers = [];
+    let incorrectWords = [];
+
+    function selectNRandom(array, n) {
+      for (let i = 0; i < n; i++) {
+        const j = Math.floor(Math.random() * (array.length - 1 - i)) + i + 1;
+        [array[i], array[j]] = [array[j], array[i]];
+      }
+    }
+
+    function shuffleArray(array) {
+      for (let i = array.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [array[i], array[j]] = [array[j], array[i]];
+      }
+    }
+
+    function initGame() {
+      selectNRandom(wordList, NUM_WORDS);
+      selectedWords = wordList.slice(0, NUM_WORDS);
+      currentWordIndex = 0;
+      score = 0;
+      userAnswers = [];
+      incorrectWords = [];
+      showWordList();
+    }
+
+    function showWordList() {
+      const wordListContainer = document.getElementById("wordListContainer");
+      wordListContainer.innerHTML = '';
+      selectedWords.forEach((word, index) => {
+        wordListContainer.innerHTML += `
+          <div style="display: flex; justify-content: space-between; align-items: center; width: 100%; margin: 5px 0;">
+            <span style="font-size: 3rem; flex-grow: 1; text-align: left;">${word}</span>
+            <button onclick="playWord(${index})" class="yellow-button2">▶</button>
+          </div>`;
+      });
+      //wordListContainer.innerHTML += `<button onclick="startTest()" class="yellow-button" style="margin-top: 20px;">🔊 התחל תרגול</button>`;
+      document.getElementById("wordList").style.display = "block";
+      document.getElementById("game").style.display = "none";
+      document.getElementById("result").innerHTML = '';
+      document.getElementById("result").style.display = "none";
+    }
+
+
+    function playEffect(name) {
+      var e_effect = document.getElementById("effect");
+      var audio = document.getElementById("mp3Effect");
+      audio.src = name;
+      e_effect.load();
+      e_effect.sorce;
+      e_effect.volume = 0.5;
+      e_effect.play().catch((error) => {
+      });
+    }
+    function stopEffect() {
+      var e_effect = document.getElementById("effect");
+      e_effect.pause();
+      e_effect.currentTime = 0;
+    }    
+
+    function playWord(index) {
+      const word = selectedWords[index];
+      const msg = new SpeechSynthesisUtterance(word);
+      msg.lang = 'he-IL';
+      speechSynthesis.speak(msg);
+    }
+
+    function startTest() {
+      shuffleArray(selectedWords); // Shuffle the words before starting the test
+      currentWordIndex = 0; // Reset the current word index
+      document.getElementById("wordList").style.display = "none";
+      document.getElementById("game").style.display = "block";
+      speakWord();
+    }
+
+    function updateProgress() {
+      const progressText = document.getElementById("progressText");
+      const progressBar = document.getElementById("progressBar");
+      const currentWordIndexElement = document.getElementById("currentWordIndex");
+      const totalWordsElement = document.getElementById("totalWords");
+
+      currentWordIndexElement.textContent = currentWordIndex + 1; // Update current word index
+      totalWordsElement.textContent = selectedWords.length; // Update total words
+      const progressPercentage = ((currentWordIndex + 1) / selectedWords.length) * 100;
+      progressBar.style.width = `${progressPercentage}%`; // Update progress bar width
+    }
+
+    function speakWord() {
+      const word = selectedWords[currentWordIndex];
+      const msg = new SpeechSynthesisUtterance(word);
+      msg.lang = 'he-IL';
+      speechSynthesis.speak(msg);
+      document.getElementById("wordInput").focus();
+      updateProgress(); // Update progress when a word is spoken
+    }
+
+    function submitAnswer() {
+      const userInput = document.getElementById("wordInput").value.trim();
+      const correctWord = selectedWords[currentWordIndex];
+      userAnswers.push({ input: userInput, correct: correctWord });
+
+      if (userInput === correctWord) {
+        score++;
+      } else {
+        incorrectWords.push(correctWord);
+      }
+
+      currentWordIndex++;
+      document.getElementById("wordInput").value = '';
+
+      if (currentWordIndex >= selectedWords.length) {
+        endGame();
+      } else {
+        speakWord();
+      }
+    }
+
+    function endGame() {
+      let resultHTML = `<h2 class="yellow-text">תוצאה: ${score} מתוך ${selectedWords.length}</h2>`;
+
+      if (incorrectWords.length > 0)
+      {
+        resultHTML += `<ul>`;
+        userAnswers.forEach((ans, i) => {
+         const isCorrect = ans.input === ans.correct;
+         resultHTML += `<li class="yellow-text2">"${ans.correct}" — ${isCorrect ? '✅' : `❌ "${ans.input}"`}</li>`;
+        });
+        resultHTML += '</ul>';
+      }
+
+
+      if (incorrectWords.length > 0) {
+        resultHTML += `<button onclick="retryIncorrect()" class="yellow-button">נסה שוב את המילים השגויות</button>`;
+      } else {
+        playEffect("assets/success-fanfare-trumpets-6185.mp3");
+        resultHTML += `<p class = "yellow-text">כל הכבוד! עברת את כל המילים בהצלחה!</p>`;
+        resultHTML += `<img src="assets/win.png" alt="Win" style="width: 50rem; height: 50rem;">`;
+        resultHTML += `<button onclick="stopEffect();initGame()" class="yellow-button">התחל סבב חדש</button>`;
+      }
+
+      document.getElementById('game').style.display = 'none';
+      document.getElementById('result').innerHTML = resultHTML;
+      document.getElementById('result').style.display = 'flex'; // Ensure the result section is visible
+    }
+
+    function retryIncorrect() {
+      selectedWords = incorrectWords;
+      currentWordIndex = 0;
+      score = 0;
+      userAnswers = [];
+      incorrectWords = [];
+      showWordList();
+    }
+
+    function startTraining() {
+      document.getElementById("openingScreen").style.display = "none";
+      initGame();
+    }
+
+    function testAudio() {
+      document.getElementById("openingScreen").style.display = "none";
+      document.getElementById("audioTestScreen").style.display = "flex";
+    }
+
+    function showCredit() {
+      document.getElementById("openingScreen").style.display = "none";
+      document.getElementById("creditScreen").style.display = "flex";
+
+    }
+
+
+    function playTestAudio() {
+      const msg = new SpeechSynthesisUtterance("בדיקת שמע");
+      msg.lang = 'he-IL';
+      speechSynthesis.speak(msg);
+      document.getElementById("audioTestMessage").textContent = "אם שמעת את המילה, השמע פועל כראוי.";
+    }
+
+    function showAudioHelp() {
+      document.getElementById("audioTestScreen").style.display = "none";
+      document.getElementById("audioHelpScreen").style.display = "flex";
+    }
+
+    function returnToOpeningScreen() {
+      document.getElementById("audioTestScreen").style.display = "none";
+      document.getElementById("audioHelpScreen").style.display = "none";
+      document.getElementById("creditScreen").style.display = "none";
+      document.getElementById("openingScreen").style.display = "flex";
+
+    }
+
+    // Start the game on load
+    window.onload = () => {
+      document.getElementById("openingScreen").style.display = "flex";
+    };
+  </script>
+</body>
+</html>
+
