@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Partial MP3 Fetch and Play</title>
+</head>
+<body>
+  <button id="play">Play Partial MP3</button>
+
+  <script>
+    document.getElementById("play").addEventListener("click", play);
+    
+    async function play() {
+      const url = "words.bundle"; // replace with actual MP3 file
+      const start = 0;
+      const end = 9215;
+
+      try {
+        const response = await fetch(url, {
+          headers: {
+            "Range": `bytes=${start}-${end}`
+          }
+        });
+
+        if (!response.ok && response.status !== 206) {
+          throw new Error("Range request failed or server does not support it");
+        }
+
+        const arrayBuffer = await response.arrayBuffer();
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const source = audioCtx.createBufferSource();
+
+        audioCtx.decodeAudioData(arrayBuffer, (decodedData) => {
+          source.buffer = decodedData;
+          source.connect(audioCtx.destination);
+          source.start(0);
+        }, (error) => {
+          console.error("decodeAudioData failed:", error);
+          alert("iOS Safari likely cannot decode this partial MP3");
+        });
+      } catch (e) {
+        console.error("Error:", e);
+        alert("Failed to play partial MP3: " + e.message);
+      }
+    };
+  </script>
+</body>
+</html>

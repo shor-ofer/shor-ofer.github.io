@@ -132,7 +132,7 @@
   <audio style="display:none" id ="effect" controls=""  name="media">
     <source id="mp3Effect" src="" type="audio/mpeg">
   </audio>    
-  <audio style="display:none"  id="player" controls></audio>
+  <!-- <audio style="display:none"  id="player" controls></audio> -->
 
   <h1>תרגול איות בעברית</h1>
 
@@ -295,18 +295,54 @@
     //   speechSynthesis.speak(msg);
     // }
 
-    function playWord(index) {
+    // function playWordOld(index) {
+    //   const { offset, size } = wordBundle[index];
+    //   const headers = { Range: `bytes=${offset}-${offset + size - 1}` };
+    //   fetch("words.bundle", { headers })
+    //     .then(res => res.blob())
+    //     .then(blob => {
+    //       const url = URL.createObjectURL(blob);
+    //       const audio = document.getElementById("player");
+    //       audio.src = url;
+    //       audio.play();
+    //     });
+    // }
+
+async function playWord(index) {
+      const url = "words.bundle"; // replace with actual MP3 file
       const { offset, size } = wordBundle[index];
-      const headers = { Range: `bytes=${offset}-${offset + size - 1}` };
-      fetch("words.bundle", { headers })
-        .then(res => res.blob())
-        .then(blob => {
-          const url = URL.createObjectURL(blob);
-          const audio = document.getElementById("player");
-          audio.src = url;
-          audio.play();
+      const start = offset;
+      const end = offset + size - 1;
+
+      try {
+        const response = await fetch(url, {
+          headers: {
+            "Range": `bytes=${start}-${end}`
+          }
         });
-    }
+
+        if (!response.ok && response.status !== 206) {
+          throw new Error("Word fetch request failed or server does not support it");
+        }
+
+        const arrayBuffer = await response.arrayBuffer();
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const source = audioCtx.createBufferSource();
+
+        audioCtx.decodeAudioData(arrayBuffer, (decodedData) => {
+          source.buffer = decodedData;
+          source.connect(audioCtx.destination);
+          source.start(0);
+        }, (error) => {
+          console.error("decodeAudioData failed:", error);
+          //alert("iOS Safari likely cannot decode this partial MP3");
+        });
+      } catch (e) {
+        console.error("Error:", e);
+        //alert("Failed to play partial MP3: " + e.message);
+      }
+    };
+
 
 
     function startTest() {
