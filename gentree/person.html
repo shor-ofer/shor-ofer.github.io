@@ -1,0 +1,1383 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>פרופיל | Profile</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg?v=2">
+  <link rel="alternate icon" href="favicon.ico">
+  <link rel="apple-touch-icon" href="favicon.svg?v=2">
+  <link rel="stylesheet" href="assets/css/person.css?v=20260341">
+  <!-- Document parsing libraries for preview -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <!-- JSZip library for folder downloads -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <!-- Hierarchical documents support -->
+  <script src="assets/js/hierarchical-documents.js?v=20260341"></script></script>
+</head>
+<body>
+  <div class="header">
+    <h1 id="pageTitle">פרופיל</h1>
+    <div class="header-controls">
+      <a href="#" class="back-link" id="backText" onclick="goBackToTree(); return false;">← חזור לעץ</a>
+      <a href="#" class="contribute-link" id="contributeText" onclick="openContributeForm(); return false;">➕ שתף</a>
+      <div class="lang-switcher">
+        <button class="lang-btn" data-lang="en">en</button>
+        <button class="lang-btn active" data-lang="he">עב</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="content">
+    <div id="personContent"></div>
+  </div>
+
+  <!-- Document Preview Modal -->
+  <div class="doc-preview-modal" id="docPreviewModal" onclick="closePreviewIfBackdrop(event)">
+    <div class="doc-preview-content">
+      <div class="doc-preview-header">
+        <div class="doc-preview-info">
+          <h2 class="doc-preview-title" id="previewTitle"></h2>
+          <div class="doc-preview-meta" id="previewMeta"></div>
+        </div>
+        <button class="doc-preview-close" onclick="closeDocPreview()">✕</button>
+      </div>
+      <div class="doc-preview-body">
+        <div class="doc-preview-icon-large" id="previewIcon"></div>
+        <div class="doc-preview-description" id="previewDescription"></div>
+        <div class="doc-preview-snippet" id="previewSnippet"></div>
+      </div>
+      <div class="doc-preview-actions">
+        <button class="doc-preview-btn secondary" onclick="closeDocPreview()">
+          <span>✕</span>
+          <span id="previewCancelText">סגור</span>
+        </button>
+        <a class="doc-preview-btn primary" id="previewOpenBtn" href="#">
+          <span>👁️</span>
+          <span id="previewOpenText">פתח מסמך מלא</span>
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <script src="assets/js/shared.js"></script>
+  <script>
+    // Configuration: Enable folder downloads only on staging
+    const ENABLE_FOLDER_DOWNLOADS = window.location.hostname.includes('staging') || 
+                                     window.location.hostname.includes('localhost') ||
+                                     window.location.hostname.includes('127.0.0.1');
+
+    const strings = {
+      he: {
+        pageTitle: 'פרופיל',
+        backText: '← עץ',
+        contributeText: '➕ שתף',
+        about: 'ביוגרפיה',
+        timeline: 'ציר זמן',
+        occupation: 'עיסוק',
+        previousName: 'שם קודם',
+        nickname: 'כינוי',
+        birth: 'נולד/ה',
+        birthMale: 'נולד',
+        birthFemale: 'נולדה',
+        death: 'נפטר/ה',
+        deathMale: 'נפטר',
+        deathFemale: 'נפטרה',
+        birthPlace: 'מקום לידה',
+        deathPlace: 'מקום פטירה',
+        children: 'ילדים',
+        parents: 'הורים',
+        father: 'אב',
+        mother: 'אם',
+        siblings: 'אחים/אחיות',
+        brother: 'אח',
+        sister: 'אחות',
+        son: 'בן',
+        daughter: 'בת',
+        spouse: 'בן/בת זוג',
+        spouseMale: 'בן זוג',
+        spouseFemale: 'בת זוג',
+        noOne: 'אין מידע זמין',
+        family: 'משפחה',
+        photos: 'תמונות',
+        documents: 'מסמכים ויומנים',
+        videos: 'סרטונים',
+        noPhotos: 'אין תמונות זמינות',
+        noDocuments: 'אין מסמכים זמינים',
+        noVideos: 'אין סרטונים זמינים',
+        searchDocuments: 'חפש במסמכים (כולל תוכן)...',
+        viewDocument: 'צפה במסמך',
+        grouped: 'מקובץ',
+        downloadFolder: 'הורד תיקייה',
+        confirmDownload: 'להוריד את כל הקבצים בתיקייה זו?',
+        downloadingFiles: 'מוריד קבצים',
+        creatingZip: 'יוצר קובץ ZIP',
+        downloadComplete: 'ההורדה הושלמה',
+        downloadFailed: 'לא ניתן להוריד את הקבצים',
+        categories: {
+          autobiography: 'אוטוביוגרפיה',
+          diary: 'יומן',
+          letters: 'מכתבים',
+          certificates: 'תעודות',
+          forms: 'טפסים',
+          articles: 'מאמרים',
+          stories: 'סיפורים',
+          translations: 'תרגומים',
+          general: 'כללי',
+          'articles-published': 'מאמרים שפורסמו',
+          'articles-unpublished': 'מאמרים שלא פורסמו',
+          'art-reviews': 'ביקורת אמנות',
+          'book-reviews': 'ביקורת ספרים',
+          books: 'ספרים',
+          'handwriting': 'כתבי יד',
+          'handwriting-original': 'כתבי יד במקור',
+          'notebooks-german': 'מחברות בגרמנית',
+          photos: 'תמונות',
+          'photo-scans-exhibits': 'צילום מוצגים',
+          'photo-scans-documents': 'צילום מסמכים',
+          'photo-scans-photos': 'צילום תמונות',
+          'photo-scans-certificates': 'צילום תעודות',
+          'documents-certificates': 'מסמכים ותעודות',
+          'documents-certificates-alt': 'תעודות ומסמכים',
+          'press-clippings': 'קטעי עיתונות',
+          'haganah-archive': 'עדויות מהארכיון לתולדות ההגנה',
+          'greetings-farewells': 'ברכות ופרידות',
+          dedications: 'הקדשות',
+          works: 'עבודות',
+          chronology: 'כרונולוגיה',
+          'certificates-school': 'תעודות בית ספר',
+          'certificates-training': 'תעודות הכשרה',
+          'certificates-other': 'תעודות אחרות',
+          'world-events': 'אירועי עולם',
+          'education-psychology': 'חינוך ופסיכולוגיה',
+          other: 'אחר'
+        }
+      },
+      en: {
+        pageTitle: 'Profile',
+        backText: 'Back to Tree',
+        contributeText: '+ Contribute Info',
+        about: 'Biography',
+        timeline: 'Timeline',
+        occupation: 'Occupation',
+        previousName: 'Previous Name',
+        nickname: 'Nickname',
+        birth: 'Born',
+        death: 'Died',
+        birthPlace: 'Birthplace',
+        deathPlace: 'Place of Death',
+        children: 'Children',
+        parents: 'Parents',
+        father: 'Father',
+        mother: 'Mother',
+        siblings: 'Siblings',
+        brother: 'Brother',
+        sister: 'Sister',
+        son: 'Son',
+        daughter: 'Daughter',
+        spouse: 'Spouse',
+        spouseMale: 'Husband',
+        spouseFemale: 'Wife',
+        noOne: 'No information available',
+        family: 'Family',
+        photos: 'Photos',
+        documents: 'Documents & Diaries',
+        videos: 'Videos',
+        noPhotos: 'No photos available',
+        noDocuments: 'No documents available',
+        noVideos: 'No videos available',
+        searchDocuments: 'Search documents (including content)...',
+        viewDocument: 'View Document',
+        grouped: 'Grouped',
+        downloadFolder: 'Download Folder',
+        confirmDownload: 'Download all files in this folder?',
+        downloadingFiles: 'Downloading files',
+        creatingZip: 'Creating ZIP file',
+        downloadComplete: 'Download complete',
+        downloadFailed: 'Could not download files',
+        categories: {
+          autobiography: 'Autobiography',
+          diary: 'Diary',
+          letters: 'Letters',
+          certificates: 'Certificates',
+          forms: 'Forms',
+          articles: 'Articles',
+          stories: 'Stories',
+          translations: 'Translations',
+          general: 'General',
+          'articles-published': 'Published Articles',
+          'articles-unpublished': 'Unpublished Articles',
+          'art-reviews': 'Art Reviews',
+          'book-reviews': 'Book Reviews',
+          books: 'Books',
+          'handwriting': 'Handwritten',
+          'handwriting-original': 'Original Handwritten',
+          'notebooks-german': 'German Notebooks',
+          photos: 'Photos',
+          'photo-scans-exhibits': 'Scanned Exhibits',
+          'photo-scans-documents': 'Scanned Documents',
+          'photo-scans-photos': 'Scanned Photos',
+          'photo-scans-certificates': 'Scanned Certificates',
+          'documents-certificates': 'Documents & Certificates',
+          'documents-certificates-alt': 'Certificates & Documents',
+          'press-clippings': 'Press Clippings',
+          'haganah-archive': 'Testimonies from Haganah Archive',
+          'greetings-farewells': 'Greetings & Farewells',
+          dedications: 'Dedications',
+          works: 'Works',
+          chronology: 'Chronology',
+          'certificates-school': 'School Certificates',
+          'certificates-training': 'Training Certificates',
+          'certificates-other': 'Other Certificates',
+          'world-events': 'World Events',
+          'education-psychology': 'Education & Psychology',
+          other: 'Other'
+        }
+      }
+    };
+
+    async function loadPerson() {
+      // Get person ID from URL parameter
+      const params = new URLSearchParams(window.location.search);
+      const personIdParam = params.get('id');
+
+      if (!personIdParam) {
+        document.getElementById('personContent').innerHTML = `<div class="empty">${strings[langManager.currentLang].noOne}</div>`;
+        return;
+      }
+
+      // Convert to number (IDs are now numeric)
+      const personId = parseInt(personIdParam, 10);
+      if (isNaN(personId)) {
+        console.error('Invalid person ID:', personIdParam);
+        document.getElementById('personContent').innerHTML = `<div class="empty">${strings[langManager.currentLang].noOne}</div>`;
+        return;
+      }
+
+      // Load core data
+      const loaded = await dataManager.load();
+      if (!loaded) {
+        console.error('Failed to load family data');
+        return;
+      }
+
+      const person = dataManager.getPerson(personId);
+      if (!person) {
+        console.error('Person not found:', personId);
+        document.getElementById('personContent').innerHTML = `<div class="empty">${strings[langManager.currentLang].noOne}</div>`;
+        return;
+      }
+
+      // Load extended profile (bio, timeline, documents, photos, videos)
+      const profile = await dataManager.loadProfile(personId);
+      
+      // Merge extended profile data with core person data
+      const fullPerson = { ...person, ...(profile || {}) };
+      
+      // Store documents globally for content search - Updated on every page load
+      // This ensures search always has the latest documents when JSON files are updated
+      window.documentsData = fullPerson.documents || [];
+
+      displayPerson(fullPerson);
+    }
+
+    function displayPerson(person) {
+      const lang = langManager.currentLang;
+      const name = langManager.getText(person, 'name');
+      const previousName = langManager.getText(person, 'previousName');
+      const nickname = langManager.getText(person, 'nickname');
+      const bio = langManager.getText(person, 'bio');
+      const birth = person.birth ? langManager.formatDate(person.birth) : '?';
+      const death = person.death ? langManager.formatDate(person.death) : null;
+      const birthPlace = langManager.getText(person, 'birthPlace') || '';
+      const deathPlace = langManager.getText(person, 'deathPlace') || '';
+      const occupation = langManager.getText(person, 'occupation');
+      const str = strings[lang];
+
+      document.getElementById('pageTitle').textContent = name;
+
+      // Build header with avatar
+      const avatarContent = person.avatar 
+        ? `<img src="${resolveUrl(person.avatar, person.id)}" alt="${name}">`
+        : `<div style="width:120px;height:120px;border-radius:50%;background:#4a90e2;color:white;display:flex;align-items:center;justify-content:center;font-size:36px;font-weight:bold;">${name.substring(0, 2).toUpperCase()}</div>`;
+
+      let html = `
+        <div class="person-header">
+          <div class="person-avatar">${avatarContent}</div>
+          <div>
+            <h1>${name}</h1>
+            ${previousName ? `<div class="person-previous-name"><small>${str.previousName}:</small> ${previousName}</div>` : ''}
+            ${nickname ? `<div class="person-nickname" style="color: #666; margin-top: 4px;"><small>${str.nickname}:</small> ${nickname}</div>` : ''}
+            <div class="person-meta">
+              ${birth ? `<div>${lang === 'he' ? (person.gender === 'female' ? str.birthFemale : str.birthMale) : str.birth}: ${birth}${birthPlace ? ' • ' + birthPlace : ''}</div>` : ''}
+              ${death ? `<div>${lang === 'he' ? (person.gender === 'female' ? str.deathFemale : str.deathMale) : str.death}: ${death}${deathPlace ? ' • ' + deathPlace : ''}</div>` : ''}
+            </div>
+            ${occupation ? `<div class="person-occupation">${occupation}</div>` : ''}
+          </div>
+        </div>
+      `;
+
+      // Biography section
+      if (bio) {
+        html += `
+          <div class="section">
+            <h2>${str.about}</h2>
+            <div class="bio">${bio}</div>
+          </div>
+        `;
+      }
+
+      // Timeline section - TEMPORARILY DISABLED
+      /*
+      if (person.timeline && person.timeline.length > 0) {
+        html += `
+          <div class="section">
+            <h2>${str.timeline}</h2>
+            <div class="timeline">
+        `;
+        
+        person.timeline.forEach(item => {
+          const event = langManager.getText(item, 'event');
+          const formattedYear = langManager.formatDate(item.year);
+          html += `
+            <div class="timeline-item">
+              <div class="timeline-year">${formattedYear}</div>
+              <div class="timeline-event">${event}</div>
+            </div>
+          `;
+        });
+        
+        html += `
+            </div>
+          </div>
+        `;
+      }
+      */
+
+      // Documents section will be shown later after photos
+
+      // Spouse
+      const spouse = dataManager.getSpouse(person.id);
+      if (spouse) {
+        const spouseName = langManager.getText(spouse, 'name');
+        const spouseLabel = spouse.gender === 'female' ? str.spouseFemale : str.spouseMale;
+        html += `
+          <div class="section">
+            <h2>${spouseLabel}</h2>
+            <div class="relations-grid">
+              <a href="person.html?id=${spouse.id}" class="relation-card">
+                <div class="type">${spouseLabel}</div>
+                <div class="name">${spouseName}</div>
+              </a>
+            </div>
+          </div>
+        `;
+      }
+
+      // Parents
+      const parents = dataManager.getParents(person.id);
+      if (parents.length > 0) {
+        html += `<div class="section"><h2>${str.parents}</h2><div class="relations-grid">`;
+        parents.forEach(p => {
+          const pName = langManager.getText(p, 'name');
+          const roleLabel = p.gender === 'female' ? str.mother : str.father;
+          html += `
+            <a href="person.html?id=${p.id}" class="relation-card">
+              <div class="type">${roleLabel}</div>
+              <div class="name">${pName}</div>
+            </a>
+          `;
+        });
+        html += `</div></div>`;
+      }
+
+      // Children
+      const children = dataManager.getChildren(person.id);
+      if (children.length > 0) {
+        html += `<div class="section"><h2>${str.children}</h2><div class="relations-grid">`;
+        children.forEach(c => {
+          const cName = langManager.getText(c, 'name');
+          const roleLabel = c.gender === 'female' ? str.daughter : str.son;
+          html += `
+            <a href="person.html?id=${c.id}" class="relation-card">
+              <div class="type">${roleLabel}</div>
+              <div class="name">${cName}</div>
+            </a>
+          `;
+        });
+        html += `</div></div>`;
+      }
+
+      // Siblings
+      const siblings = dataManager.getSiblings(person.id);
+      if (siblings.length > 0) {
+        html += `<div class="section"><h2>${str.siblings}</h2><div class="relations-grid">`;
+        siblings.forEach(s => {
+          const sName = langManager.getText(s, 'name');
+          const siblingLabel = s.gender === 'female' ? str.sister : str.brother;
+          html += `
+            <a href="person.html?id=${s.id}" class="relation-card">
+              <div class="type">${siblingLabel}</div>
+              <div class="name">${sName}</div>
+            </a>
+          `;
+        });
+        html += `</div></div>`;
+      }
+
+      // Photos
+      if (person.photos && person.photos.length > 0) {
+        html += `
+          <div class="section">
+            <h2>${str.photos}</h2>
+            <div class="photo-gallery">
+        `;
+        person.photos.forEach(photo => {
+          const caption = langManager.getText(photo, 'caption');
+          // Check if this photo has a preview image extracted from a document
+          const hasPreview = photo.previewUrl;
+          // Check if this is a document (PDF/Word) or actual image
+          const isDocument = photo.type && (photo.type === 'pdf' || photo.type === 'word');
+          const hasOriginalDoc = photo.originalDocumentUrl;
+          
+          if (hasPreview) {
+            // Show preview image with badge, click opens original document
+            html += `
+              <div class="photo-item has-original-doc" data-photo-url="${resolveUrl(photo.previewUrl, person.id)}" data-photo-caption="${caption.replace(/"/g, '&quot;')}">
+                <img src="${resolveUrl(photo.previewUrl, person.id)}" alt="${caption}">
+                <div class="photo-doc-badge" data-original-doc-url="${resolveUrl(photo.originalDocumentUrl || photo.url, person.id)}" data-original-doc-caption="${caption.replace(/"/g, '&quot;')}">
+                  📄
+                </div>
+                <div class="photo-caption">
+                  ${caption}
+                  ${photo.year ? `<div class="photo-year">${photo.year}</div>` : ''}
+                  <div class="photo-original-link">${langManager.getLang() === 'he' ? 'לחץ על 📄 למסמך המקורי' : 'Click 📄 for original document'}</div>
+                </div>
+              </div>
+            `;
+          } else if (isDocument) {
+            // For documents without preview, show a clickable placeholder with document icon
+            const docIcon = photo.type === 'pdf' ? '📄' : '📝';
+            html += `
+              <div class="photo-item photo-document" data-doc-url="${resolveUrl(photo.url, person.id)}" data-doc-caption="${caption.replace(/"/g, '&quot;')}">
+                <div class="photo-document-placeholder">
+                  <div class="photo-document-icon">${docIcon}</div>
+                  <div class="photo-document-label">${str.viewDocument || 'צפה במסמך'}</div>
+                </div>
+                <div class="photo-caption">
+                  ${caption}
+                  ${photo.year ? `<div class="photo-year">${photo.year}</div>` : ''}
+                </div>
+              </div>
+            `;
+          } else {
+            // For actual images, show normally with optional link to original document
+            html += `
+              <div class="photo-item ${hasOriginalDoc ? 'has-original-doc' : ''}" data-photo-url="${resolveUrl(photo.url, person.id)}" data-photo-caption="${caption.replace(/"/g, '&quot;')}">
+                <img src="${resolveUrl(photo.url, person.id)}" alt="${caption}">
+                ${hasOriginalDoc ? `
+                  <div class="photo-doc-badge" data-original-doc-url="${resolveUrl(photo.originalDocumentUrl, person.id)}" data-original-doc-caption="${caption.replace(/"/g, '&quot;')}">
+                    📄
+                  </div>
+                ` : ''}
+                <div class="photo-caption">
+                  ${caption}
+                  ${photo.year ? `<div class="photo-year">${photo.year}</div>` : ''}
+                  ${hasOriginalDoc ? `<div class="photo-original-link">${langManager.getLang() === 'he' ? 'לחץ על 📄 למסמך המקורי' : 'Click 📄 for original document'}</div>` : ''}
+                </div>
+              </div>
+            `;
+          }
+        });
+        html += `</div></div>`;
+      }
+
+      // Documents - organized by category/folder or hierarchical structure
+      // Check if person has hierarchical document structure (e.g., for Chava Carmi's articles)
+      if (person.documentStructure) {
+        html += `
+          <div class="section">
+            <h2>${str.documents}</h2>
+            <div class="search-box">
+              <input type="text" id="hierarchicalDocumentSearch" placeholder="${str.searchDocuments || 'חפש במסמכים...'}" onkeyup="filterHierarchicalArticles()">
+              <span class="search-icon">🔍</span>
+            </div>
+            <div class="hierarchical-documents">
+              ${renderHierarchicalDocuments(person.documentStructure, person)}
+            </div>
+          </div>
+        `;
+      } else if (person.documents && person.documents.length > 0) {
+        html += `
+          <div class="section">
+            <h2>${str.documents}</h2>
+            <div class="search-box">
+              <input type="text" id="documentSearch" placeholder="${str.searchDocuments || 'חפש מסמכים...'}" onkeyup="filterDocuments()">
+              <span class="search-icon">🔍</span>
+            </div>
+        `;
+        
+        // Group documents by category
+        const docsByCategory = {};
+        person.documents.forEach(doc => {
+          const categoryKey = doc.category || 'other';
+          if (!docsByCategory[categoryKey]) {
+            docsByCategory[categoryKey] = [];
+          }
+          docsByCategory[categoryKey].push(doc);
+        });
+        
+        // Render each category as a folder (skip photos category as it's shown in Photos section above)
+        Object.keys(docsByCategory).forEach(categoryKey => {
+          // Skip photos category to avoid duplication with Photos section
+          if (categoryKey === 'photos' || categoryKey === 'photo-scans-photos') {
+            return;
+          }
+          
+          const docs = docsByCategory[categoryKey];
+          const currentLang = langManager.getLang();
+          
+          // Use categoryHe if in Hebrew mode and available, otherwise use translations or fallback to English
+          let categoryLabel;
+          if (currentLang === 'he' && docs[0] && docs[0].categoryHe) {
+            categoryLabel = docs[0].categoryHe;
+          } else if (str.categories && str.categories[categoryKey]) {
+            categoryLabel = str.categories[categoryKey];
+          } else {
+            categoryLabel = categoryKey;
+          }
+          
+          const folderId = `folder-${categoryKey}`;
+          
+          html += `
+            <div class="document-folder" data-category="${categoryLabel.toLowerCase()}" data-folder-docs='${JSON.stringify(docs.map(d => ({url: resolveUrl(d.url || d.originalUrl, person.id), title: langManager.getText(d, 'title'), type: d.type})))}'>
+              <div class="folder-header" data-folder-id="${folderId}">
+                <span class="folder-icon">📁</span>
+                <span class="folder-name">${categoryLabel}</span>
+                <span class="folder-count">(${docs.length})</span>
+                ${ENABLE_FOLDER_DOWNLOADS ? `
+                <button class="folder-download" onclick="confirmDownloadFolder('${folderId}', '${categoryLabel}'); event.stopPropagation();" title="${str.downloadFolder}">
+                  <span class="download-icon">⬇️</span>
+                  <span class="download-text">${str.downloadFolder}</span>
+                </button>
+                ` : ''}
+                <span class="folder-toggle" id="${folderId}-toggle">▼</span>
+              </div>
+              <div class="folder-contents" id="${folderId}">
+          `;
+          
+          docs.forEach(doc => {
+            const title = langManager.getText(doc, 'title');
+            const description = langManager.getText(doc, 'description');
+            
+            // Check if this is a grouped document (original + transcription)
+            const isGrouped = doc.type === 'grouped';
+            
+            if (isGrouped) {
+              // Render grouped document with both original and transcribed versions
+              const originalUrl = resolveUrl(doc.originalUrl, person.id);
+              const transcribedUrl = resolveUrl(doc.transcribedUrl, person.id);
+              const currentLang = langManager.getLang();
+              
+              const originalSuffix = currentLang === 'he' ? ' (מקור)' : ' (Original)';
+              const transcribedSuffix = currentLang === 'he' ? ' (מתומלל)' : ' (Transcribed)';
+              
+              const originalViewerUrl = `document-viewer.html?url=${encodeURIComponent(originalUrl)}&title=${encodeURIComponent(title + originalSuffix)}&type=pdf&year=${encodeURIComponent(doc.year || '')}&personId=${person.id}&lang=${currentLang}`;
+              const transcribedViewerUrl = `document-viewer.html?url=${encodeURIComponent(transcribedUrl)}&title=${encodeURIComponent(title + transcribedSuffix)}&type=word&year=${encodeURIComponent(doc.year || '')}&personId=${person.id}&lang=${currentLang}`;
+              
+              // For grouped documents, combine both original and transcribed content for searching
+              const contentOriginal = doc.contentOriginal || '';
+              const contentTranscribed = doc.contentTranscribed || '';
+              const combinedContent = contentOriginal + ' ' + contentTranscribed;
+              const contentPreview = combinedContent.substring(0, 500).toLowerCase();
+              
+              html += `
+                <div class="document-item document-group" 
+                     data-doc-id="${doc.id}"
+                     data-title="${title.toLowerCase()}" 
+                     data-description="${description ? description.toLowerCase() : ''}" 
+                     data-year="${doc.year || ''}" 
+                     data-type="grouped"
+                     data-category="${categoryLabel.toLowerCase()}"
+                     data-content="${contentPreview.replace(/"/g, '&quot;')}">
+                  <div class="document-icon">📑</div>
+                  <div class="document-info">
+                    <div class="document-title">${title}</div>
+                    ${description ? `<div class="document-description">${description}</div>` : ''}
+                    ${doc.year ? `<div class="document-meta">${str.grouped.toUpperCase()} • ${doc.year}</div>` : `<div class="document-meta">${str.grouped.toUpperCase()}</div>`}
+                    <div class="document-versions">
+                      <button class="version-button ver-original" data-viewer-url="${originalViewerUrl}">
+                        <span class="ver-icon">📄</span>
+                        <span class="ver-label">${currentLang === 'he' ? 'מקור (PDF)' : 'Original (PDF)'}</span>
+                      </button>
+                      <button class="version-button ver-transcribed" data-viewer-url="${transcribedViewerUrl}">
+                        <span class="ver-icon">📝</span>
+                        <span class="ver-label">${currentLang === 'he' ? 'מתומלל (Word)' : 'Transcribed (Word)'}</span>
+                      </button>
+                    </div>
+                    <div class="document-snippet" style="display:none;"></div>
+                  </div>
+                </div>
+              `;
+            } else {
+              // Regular single document
+              // Get appropriate icon for document type
+              let icon = '📝';
+              const type = doc.type ? doc.type.toLowerCase() : '';
+              if (type === 'pdf') icon = '📄';
+              else if (type === 'word' || type === 'doc' || type === 'docx') icon = '📘';
+              else if (type === 'excel' || type === 'xls' || type === 'xlsx') icon = '📊';
+              else if (type === 'image' || type === 'jpg' || type === 'png') icon = '🖼️';
+              else if (type === 'video' || type === 'mp4') icon = '🎥';
+              
+              // Build viewer URL
+              const currentLang = langManager.getLang();
+              const viewerUrl = `document-viewer.html?url=${encodeURIComponent(resolveUrl(doc.url, person.id))}&title=${encodeURIComponent(title)}&type=${encodeURIComponent(doc.type || '')}&year=${encodeURIComponent(doc.year || '')}&personId=${person.id}&lang=${currentLang}`;
+              
+              // Prepare doc data for preview
+              const docData = {
+                title: title,
+                description: description || '',
+                type: doc.type || '',
+                year: doc.year || '',
+                url: resolveUrl(doc.url, person.id),
+                viewerUrl: viewerUrl,
+                icon: icon,
+                categoryLabel: categoryLabel
+              };
+              
+              // Get content for search (truncate to 500 chars for data attribute)
+              const content = doc.content || '';
+              const contentPreview = content.substring(0, 500).toLowerCase();
+              
+              // Check if document has a preview image (for photo documents)
+              const hasPreview = doc.previewUrl && categoryKey === 'photos';
+              
+              html += `
+                <div class="document-item ${hasPreview ? 'has-preview' : ''}" 
+                     data-doc-data='${JSON.stringify(docData).replace(/'/g, "&#39;")}'  
+                     data-doc-id="${doc.id}"
+                     data-title="${title.toLowerCase()}" 
+                     data-description="${description ? description.toLowerCase() : ''}" 
+                     data-year="${doc.year || ''}" 
+                     data-type="${doc.type || ''}"
+                     data-category="${categoryLabel.toLowerCase()}"
+                     data-content="${contentPreview.replace(/"/g, '&quot;')}">
+                  ${hasPreview ? 
+                    `<div class="document-preview"><img src="${resolveUrl(doc.previewUrl, person.id)}" alt="${title}"></div>` :
+                    `<div class="document-icon">${icon}</div>`
+                  }
+                  <div class="document-info">
+                    <div class="document-title">${title}</div>
+                    ${description ? `<div class="document-description">${description}</div>` : ''}
+                    ${doc.year ? `<div class="document-meta">${doc.type.toUpperCase()} • ${doc.year}</div>` : `<div class="document-meta">${doc.type.toUpperCase()}</div>`}
+                    <div class="document-snippet" style="display:none;"></div>
+                  </div>
+                </div>
+              `;
+            }
+          });
+          
+          html += `
+              </div>
+            </div>
+          `;
+        });
+        
+        html += `</div>`;
+      }
+
+      // Videos
+      if (person.videos && person.videos.length > 0) {
+        html += `
+          <div class="section">
+            <h2>${str.videos}</h2>
+            <div class="videos-list">
+        `;
+        person.videos.forEach(video => {
+          const title = langManager.getText(video, 'title');
+          const description = langManager.getText(video, 'description');
+          html += `
+            <div class="video-item" data-video-url="${resolveUrl(video.url, person.id)}">
+              ${video.thumbnail ? `<img src="${resolveUrl(video.thumbnail, person.id)}" class="video-thumbnail" alt="${title}">` : '<div class="video-thumbnail">🎥</div>'}
+              <div class="video-info">
+                <div class="video-title">${title}</div>
+                ${description ? `<div class="video-description">${description}</div>` : ''}
+                ${video.year ? `<div class="video-year">${video.year}</div>` : ''}
+              </div>
+            </div>
+          `;
+        });
+        html += `</div></div>`;
+      }
+
+      document.getElementById('personContent').innerHTML = html;
+      
+      // Attach event listeners for photo items
+      document.querySelectorAll('.photo-item[data-photo-url]').forEach(item => {
+        const img = item.querySelector('img');
+        if (img) {
+          img.style.cursor = 'pointer';
+          img.addEventListener('click', () => {
+            const url = item.getAttribute('data-photo-url');
+            const caption = item.getAttribute('data-photo-caption');
+            openPhotoViewer(url, caption);
+          });
+        }
+      });
+      
+      // Attach event listeners for photo documents
+      document.querySelectorAll('.photo-item.photo-document[data-doc-url]').forEach(item => {
+        item.style.cursor = 'pointer';
+        item.addEventListener('click', () => {
+          const url = item.getAttribute('data-doc-url');
+          const caption = item.getAttribute('data-doc-caption');
+          openDocumentViewer(url, caption);
+        });
+      });
+      
+      // Attach event listeners for photo doc badges (original document links)
+      document.querySelectorAll('.photo-doc-badge[data-original-doc-url]').forEach(badge => {
+        badge.style.cursor = 'pointer';
+        badge.addEventListener('click', (event) => {
+          event.stopPropagation();
+          const url = badge.getAttribute('data-original-doc-url');
+          const caption = badge.getAttribute('data-original-doc-caption');
+          openDocumentViewer(url, caption);
+        });
+      });
+      
+      // Attach event listeners for version buttons in grouped documents
+      document.querySelectorAll('.version-button[data-viewer-url]').forEach(button => {
+        button.addEventListener('click', (event) => {
+          event.stopPropagation();
+          // Save scroll position before navigating
+          sessionStorage.setItem('personPageScrollY', window.scrollY.toString());
+          const url = button.getAttribute('data-viewer-url');
+          window.location.href = url;
+        });
+      });
+      
+      // Attach event listeners for regular document items
+      document.querySelectorAll('.document-item[data-doc-data]').forEach(item => {
+        item.style.cursor = 'pointer';
+        item.addEventListener('click', () => {
+          const docDataStr = item.getAttribute('data-doc-data');
+          const docData = JSON.parse(docDataStr.replace(/&#39;/g, "'"));
+          showDocPreview(docData);
+        });
+      });
+      
+      // Attach event listeners for video items
+      document.querySelectorAll('.video-item[data-video-url]').forEach(item => {
+        item.style.cursor = 'pointer';
+        item.addEventListener('click', () => {
+          const url = item.getAttribute('data-video-url');
+          window.open(url, '_blank');
+        });
+      });
+      
+      // Attach event listeners for folder headers
+      document.querySelectorAll('.folder-header[data-folder-id]').forEach(header => {
+        header.style.cursor = 'pointer';
+        header.addEventListener('click', () => {
+          const folderId = header.getAttribute('data-folder-id');
+          toggleFolder(folderId);
+        });
+      });
+      
+      // Restore scroll position if returning from document viewer
+      const savedScrollY = sessionStorage.getItem('personPageScrollY');
+      if (savedScrollY !== null) {
+        // Use setTimeout to ensure DOM is fully rendered before scrolling
+        setTimeout(() => {
+          window.scrollTo(0, parseInt(savedScrollY, 10));
+          // Clear the saved position after restoring
+          sessionStorage.removeItem('personPageScrollY');
+        }, 100);
+      }
+      
+      // Load transcription content for full-text search
+      if (person.documentStructure && window.loadAllTranscriptionContent) {
+        loadAllTranscriptionContent();
+      }
+    }
+
+    function switchPersonLang(lang, targetBtn) {
+      langManager.setLang(lang);
+      document.documentElement.setAttribute('dir', lang === 'he' ? 'rtl' : 'ltr');
+      const str = strings[lang];
+      document.getElementById('pageTitle').textContent = str.pageTitle;
+      document.getElementById('backText').textContent = str.backText;
+
+      // Update buttons
+      document.querySelectorAll('.lang-btn').forEach(btn => {
+        btn.classList.remove('active');
+      });
+      if (targetBtn) {
+        targetBtn.classList.add('active');
+      }
+
+      // Update header
+      document.getElementById('contributeText').textContent = str.contributeText;
+
+      // Reload person
+      loadPerson();
+    }
+    
+    // Filter documents based on search input
+    // Filter documents based on search input
+    // This function is called on every keystroke in the search box
+    // It searches through window.documentsData which is refreshed on every page load
+    function filterDocuments() {
+      const searchInput = document.getElementById('documentSearch');
+      if (!searchInput) return;
+      
+      // Safety check: Ensure documents data is available
+      if (!window.documentsData) {
+        console.warn('Documents data not loaded yet');
+        return;
+      }
+      
+      const searchTerm = searchInput.value.toLowerCase().trim();
+      const documentItems = document.querySelectorAll('.document-item');
+      
+      documentItems.forEach(item => {
+        const title = item.getAttribute('data-title') || '';
+        const description = item.getAttribute('data-description') || '';
+        const year = item.getAttribute('data-year') || '';
+        const type = item.getAttribute('data-type') || '';
+        const category = item.getAttribute('data-category') || '';
+        const contentPreview = item.getAttribute('data-content') || '';
+        const docId = parseInt(item.getAttribute('data-doc-id'));
+        
+        const snippetDiv = item.querySelector('.document-snippet');
+        
+        // If no search term, show all and hide snippets
+        if (!searchTerm) {
+          item.style.display = 'flex';
+          if (snippetDiv) {
+            snippetDiv.style.display = 'none';
+            snippetDiv.innerHTML = '';
+          }
+          return;
+        }
+        
+        // Search across metadata fields first
+        const metadataMatch = title.includes(searchTerm) || 
+                             description.includes(searchTerm) || 
+                             year.includes(searchTerm) || 
+                             type.toLowerCase().includes(searchTerm) ||
+                             category.includes(searchTerm);
+        
+        // Search in full content from documentsData (not just the preview)
+        let contentMatch = false;
+        let matchInContent = false;
+        let snippet = '';
+        
+        if (!metadataMatch && window.documentsData && docId) {
+          const fullDoc = window.documentsData.find(d => d.id === docId);
+          if (fullDoc) {
+            // Check all content fields (regular docs have 'content', grouped docs have both)
+            let fullContent = '';
+            if (fullDoc.content) {
+              fullContent = fullDoc.content;
+            }
+            if (fullDoc.contentOriginal) {
+              fullContent += ' ' + fullDoc.contentOriginal;
+            }
+            if (fullDoc.contentTranscribed) {
+              fullContent += ' ' + fullDoc.contentTranscribed;
+            }
+            
+            const fullContentLower = fullContent.toLowerCase();
+            const matchIndex = fullContentLower.indexOf(searchTerm);
+            
+            if (matchIndex !== -1) {
+              contentMatch = true;
+              matchInContent = true;
+              
+              // Create snippet with context (50 chars before and 150 after)
+              const start = Math.max(0, matchIndex - 50);
+              const end = Math.min(fullContent.length, matchIndex + searchTerm.length + 150);
+              let snippetText = fullContent.substring(start, end);
+              
+              // Add ellipsis if truncated
+              if (start > 0) snippetText = '...' + snippetText;
+              if (end < fullContent.length) snippetText = snippetText + '...';
+              
+              // Highlight the search term (case-insensitive)
+              const regex = new RegExp(`(${searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+              snippetText = snippetText.replace(regex, '<mark>$1</mark>');
+              
+              snippet = `<div style="margin-top:8px;padding:8px 12px;background:#fffbec;border-left:3px solid #f39c12;font-size:12px;color:#555;line-height:1.5;border-radius:4px;">
+                           <strong>📄 נמצא בתוכן:</strong> ${snippetText}
+                         </div>`;
+            }
+          }
+        }
+        
+        let matches = metadataMatch || contentMatch;
+        
+        // Show/hide item based on match
+        item.style.display = matches ? 'flex' : 'none';
+        
+        // Show snippet if match was in content
+        if (snippetDiv) {
+          if (matchInContent && snippet) {
+            snippetDiv.innerHTML = snippet;
+            snippetDiv.style.display = 'block';
+          } else {
+            snippetDiv.style.display = 'none';
+            snippetDiv.innerHTML = '';
+          }
+        }
+      });
+      
+      // Show/hide folders based on whether they have visible documents
+      const folders = document.querySelectorAll('.document-folder');
+      folders.forEach(folder => {
+        const visibleDocs = folder.querySelectorAll('.document-item[style*="display: flex"], .document-item:not([style*="display: none"])');
+        folder.style.display = visibleDocs.length > 0 ? 'block' : 'none';
+      });
+    }
+    
+    // Confirm before downloading folder
+    function confirmDownloadFolder(folderId, folderName) {
+      const currentLang = langManager.getLang();
+      const str = strings[currentLang];
+      const folderElement = document.querySelector(`[data-folder-id="${folderId}"]`).parentElement;
+      const docsData = JSON.parse(folderElement.getAttribute('data-folder-docs') || '[]');
+      
+      const message = `${str.confirmDownload}\n\n${folderName}: ${docsData.length} ${currentLang === 'he' ? 'קבצים' : 'files'}`;
+      
+      if (confirm(message)) {
+        downloadFolder(folderId, folderName);
+      }
+    }
+    
+    // Download entire folder as ZIP
+    async function downloadFolder(folderId, folderName) {
+      const folderElement = document.querySelector(`[data-folder-id="${folderId}"]`).parentElement;
+      const docsData = JSON.parse(folderElement.getAttribute('data-folder-docs') || '[]');
+      
+      const currentLang = langManager.getLang();
+      const str = strings[currentLang];
+      
+      if (docsData.length === 0) {
+        alert(currentLang === 'he' ? 'אין קבצים להורדה בתיקייה זו' : 'No files to download in this folder');
+        return;
+      }
+      
+      // Check if JSZip is loaded
+      if (typeof JSZip === 'undefined') {
+        alert(currentLang === 'he' ? 'ספריית ZIP לא נטענה. אנא רענן את הדף ונסה שוב' : 'ZIP library not loaded. Please refresh the page and try again.');
+        return;
+      }
+      
+      const zip = new JSZip();
+      
+      // Show progress indicator
+      const button = event.target;
+      const originalText = button.innerHTML;
+      button.innerHTML = '⏳';
+      button.disabled = true;
+      
+      try {
+        let successCount = 0;
+        let failCount = 0;
+        
+        // Download each file and add to ZIP
+        for (let i = 0; i < docsData.length; i++) {
+          const doc = docsData[i];
+          const url = doc.url;
+          const filename = doc.title + getFileExtension(url);
+          
+          try {
+            const response = await fetch(url);
+            if (response.ok) {
+              const blob = await response.blob();
+              zip.file(filename, blob);
+              successCount++;
+            } else {
+              console.warn(`Failed to download: ${url}`);
+              failCount++;
+            }
+          } catch (error) {
+            console.error(`Error downloading ${url}:`, error);
+            failCount++;
+          }
+          
+          // Update progress
+          button.innerHTML = `${Math.round((i + 1) / docsData.length * 100)}%`;
+        }
+        
+        if (successCount === 0) {
+          alert(str.downloadFailed);
+          button.innerHTML = originalText;
+          button.disabled = false;
+          return;
+        }
+        
+        // Generate ZIP file
+        button.innerHTML = str.creatingZip;
+        const zipBlob = await zip.generateAsync({type: 'blob'});
+        
+        // Download the ZIP file
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(zipBlob);
+        link.download = `${sanitizeFilename(folderName)}.zip`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(link.href);
+        
+        // Show success message
+        button.innerHTML = '✓';
+        setTimeout(() => {
+          button.innerHTML = originalText;
+          button.disabled = false;
+        }, 2000);
+        
+        if (failCount > 0) {
+          console.warn(`${failCount} files failed to download`);
+        }
+        
+      } catch (error) {
+        console.error('Error creating ZIP:', error);
+        alert(currentLang === 'he' ? 'שגיאה ביצירת קובץ ZIP' : 'Error creating ZIP file');
+        button.innerHTML = originalText;
+        button.disabled = false;
+      }
+    }
+    
+    // Helper function to get file extension from URL
+    function getFileExtension(url) {
+      const match = url.match(/\\.([a-zA-Z0-9]+)$/);
+      return match ? `.${match[1]}` : '.txt';
+    }
+    
+    // Helper function to sanitize filename for download
+    function sanitizeFilename(filename) {
+      return filename.replace(/[^a-z0-9א-ת\-_]/gi, '-').replace(/-+/g, '-');
+    }
+    
+    // Open document viewer for photo documents
+    function openDocumentViewer(url, title) {
+      const currentLang = langManager.getLang();
+      const personId = new URLSearchParams(window.location.search).get('id') || '';
+      
+      // Detect document type from URL extension
+      let type = '';
+      if (url.endsWith('.pdf')) type = 'pdf';
+      else if (url.match(/\.(doc|docx)$/)) type = 'word';
+      else if (url.match(/\.(xls|xlsx)$/)) type = 'excel';
+      
+      // Save current scroll position before navigating
+      sessionStorage.setItem('personPageScrollY', window.scrollY.toString());
+      
+      const viewerUrl = `document-viewer.html?url=${encodeURIComponent(url)}&title=${encodeURIComponent(title)}&type=${encodeURIComponent(type)}&personId=${personId}&lang=${currentLang}`;
+      // Navigate in the same window instead of opening a new one
+      window.location.href = viewerUrl;
+    }
+    
+    // Open photo in lightbox viewer
+    function openPhotoViewer(url, caption) {
+      // Create lightbox overlay
+      const lightbox = document.createElement('div');
+      lightbox.className = 'photo-lightbox';
+      lightbox.innerHTML = `
+        <div class="lightbox-overlay"></div>
+        <button class="lightbox-close">✕</button>
+        <div class="lightbox-content">
+          <img src="${url}" alt="${caption.replace(/"/g, '&quot;')}">
+          <div class="lightbox-caption">${caption}</div>
+        </div>
+      `;
+      document.body.appendChild(lightbox);
+      
+      // Add click handlers for close
+      const overlay = lightbox.querySelector('.lightbox-overlay');
+      const closeBtn = lightbox.querySelector('.lightbox-close');
+      const closeLightbox = () => {
+        lightbox.remove();
+        document.body.style.overflow = '';
+      };
+      overlay.addEventListener('click', closeLightbox);
+      closeBtn.addEventListener('click', closeLightbox);
+      
+      // Prevent body scroll
+      document.body.style.overflow = 'hidden';
+      
+      // Close on Escape key
+      const handleEscape = (e) => {
+        if (e.key === 'Escape') {
+          lightbox.remove();
+          document.body.style.overflow = '';
+          document.removeEventListener('keydown', handleEscape);
+        }
+      };
+      document.addEventListener('keydown', handleEscape);
+      
+      // Restore scroll when closed
+      lightbox.addEventListener('click', (e) => {
+        if (e.target === lightbox || e.target.classList.contains('lightbox-overlay') || e.target.classList.contains('lightbox-close')) {
+          document.body.style.overflow = '';
+        }
+      });
+    }
+    
+    // Open contribute form with pre-filled person info
+    function openContributeForm() {
+      const personId = new URLSearchParams(window.location.search).get('id');
+      const currentLang = langManager.getLang();
+      
+      // Get current person's info if available
+      const person = dataManager.getPerson(parseInt(personId));
+      if (person) {
+        const personName = langManager.getText(person, 'name');
+        const contributeUrl = `contribute.html?personId=${personId}&personName=${encodeURIComponent(personName)}&lang=${currentLang}`;
+        // Save scroll position before navigating
+        sessionStorage.setItem('personPageScrollY', window.scrollY.toString());
+        window.location.href = contributeUrl;
+      } else {
+        // Fallback if person not found
+        window.location.href = `contribute.html?lang=${currentLang}`;
+      }
+    }
+    
+    // Toggle folder open/closed
+    function toggleFolder(folderId) {
+      const folderContents = document.getElementById(folderId);
+      const folderToggle = document.getElementById(folderId + '-toggle');
+      
+      if (folderContents.style.display === 'none') {
+        folderContents.style.display = 'block';
+        folderToggle.textContent = '▼';
+      } else {
+        folderContents.style.display = 'none';
+        folderToggle.textContent = '▶';
+      }
+    }
+    
+    // Show document preview modal
+    async function showDocPreview(docData) {
+      const modal = document.getElementById('docPreviewModal');
+      const currentLang = langManager.getLang();
+      const str = strings[currentLang];
+      
+      // Update modal content
+      document.getElementById('previewTitle').textContent = docData.title;
+      document.getElementById('previewIcon').textContent = docData.icon;
+      document.getElementById('previewDescription').textContent = docData.description;
+      
+      // Update meta
+      let metaHTML = `<span>${docData.type.toUpperCase()}</span>`;
+      if (docData.year) {
+        metaHTML += `<span>• ${docData.year}</span>`;
+      }
+      if (docData.categoryLabel) {
+        metaHTML += `<span>• ${docData.categoryLabel}</span>`;
+      }
+      document.getElementById('previewMeta').innerHTML = metaHTML;
+      
+      // Show loading state
+      document.getElementById('previewSnippet').innerHTML = `
+        <div style="text-align: center; padding: 40px;">
+          <div style="display: inline-block; width: 30px; height: 30px; border: 3px solid rgba(255,255,255,0.1); border-top-color: #4a90e2; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+          <p style="margin-top: 16px;">${currentLang === 'he' ? 'טוען תצוגה מקדימה...' : 'Loading preview...'}</p>
+        </div>
+      `;
+      
+      // Show modal
+      modal.classList.add('active');
+      document.body.style.overflow = 'hidden';
+      
+      // Update button link
+      const previewOpenBtn = document.getElementById('previewOpenBtn');
+      previewOpenBtn.href = docData.viewerUrl;
+      // Add click handler to save scroll position
+      previewOpenBtn.onclick = () => {
+        sessionStorage.setItem('personPageScrollY', window.scrollY.toString());
+      };
+      document.getElementById('previewCancelText').textContent = currentLang === 'he' ? 'סגור' : 'Close';
+      document.getElementById('previewOpenText').textContent = currentLang === 'he' ? 'פתח מסמך מלא' : 'Open Full Document';
+      
+      // Load actual preview
+      await loadDocumentPreview(docData);
+    }
+    
+    // Load actual document preview content
+    async function loadDocumentPreview(docData) {
+      const snippetEl = document.getElementById('previewSnippet');
+      const currentLang = langManager.getLang();
+      const type = docData.type.toLowerCase();
+      
+      try {
+        if (type === 'pdf') {
+          // Show PDF preview using iframe
+          snippetEl.innerHTML = `
+            <iframe src="${docData.url}" style="width: 100%; height: 400px; border: none; border-radius: 8px; background: white;"></iframe>
+          `;
+        } else if (type === 'word' || type === 'doc' || type === 'docx') {
+          // Fetch and show Word document preview
+          const response = await fetch(docData.url);
+          const arrayBuffer = await response.arrayBuffer();
+          const uint8Array = new Uint8Array(arrayBuffer);
+          // Check for valid ZIP signature (DOCX files are ZIP files)
+          const isZipFile = uint8Array[0] === 0x50 && uint8Array[1] === 0x4B && 
+                           uint8Array[2] === 0x03 && uint8Array[3] === 0x04;
+          
+          if (!isZipFile) {
+            // Text file - show first few lines
+            const textContent = new TextDecoder('utf-8').decode(arrayBuffer);
+            const lines = textContent.split('\n').filter(line => line.trim().length > 0).slice(0, 10);
+            const previewHTML = lines.map(line => `<p style="margin: 8px 0; color: rgba(255,255,255,0.8);">${line}</p>`).join('');
+            snippetEl.innerHTML = `
+              <div style="background: rgba(255,255,255,0.05); padding: 16px; border-radius: 8px; max-height: 300px; overflow: auto;">
+                ${previewHTML}
+              </div>
+            `;
+          } else if (typeof mammoth !== 'undefined') {
+            // Real DOCX - try to use mammoth to extract preview
+            try {
+              const result = await mammoth.extractRawText({arrayBuffer: arrayBuffer});
+              const previewText = result.value.substring(0, 500);
+              snippetEl.innerHTML = `
+                <div style="background: rgba(255,255,255,0.05); padding: 16px; border-radius: 8px; max-height: 300px; overflow: auto;">
+                  <p style="white-space: pre-wrap; color: rgba(255,255,255,0.8);">${previewText}${result.value.length > 500 ? '...' : ''}</p>
+                </div>
+              `;
+            } catch (e) {
+              // Mammoth failed, try showing as text
+              const textContent = new TextDecoder('utf-8').decode(arrayBuffer);
+              const lines = textContent.split('\n').filter(line => line.trim().length > 0).slice(0, 10);
+              const previewHTML = lines.map(line => `<p style="margin: 8px 0; color: rgba(255,255,255,0.8);">${line}</p>`).join('');
+              snippetEl.innerHTML = `
+                <div style="background: rgba(255,255,255,0.05); padding: 16px; border-radius: 8px; max-height: 300px; overflow: auto;">
+                  ${previewHTML}
+                </div>
+              `;
+            }
+          }
+        } else if (type === 'excel' || type === 'xls' || type === 'xlsx') {
+          // Fetch and show Excel preview
+          const response = await fetch(docData.url);
+          const arrayBuffer = await response.arrayBuffer();
+          
+          const uint8Array = new Uint8Array(arrayBuffer);
+          const isZipFile = uint8Array[0] === 0x50 && uint8Array[1] === 0x4B;
+          
+          let workbook;
+          if (!isZipFile) {
+            const textContent = new TextDecoder('utf-8').decode(arrayBuffer);
+            workbook = XLSX.read(textContent, {type: 'string', raw: true});
+          } else {
+            workbook = XLSX.read(arrayBuffer, {type: 'array'});
+          }
+          
+          const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+          const range = XLSX.utils.decode_range(firstSheet['!ref']);
+          const maxRows = Math.min(range.e.r, 5); // First 5 rows
+          const previewRange = {s: {r: 0, c: range.s.c}, e: {r: maxRows, c: range.e.c}};
+          
+          const previewHTML = XLSX.utils.sheet_to_html(firstSheet, {header: 1, range: previewRange});
+          snippetEl.innerHTML = `
+            <div style="background: white; padding: 12px; border-radius: 8px; overflow: auto; max-height: 300px;">
+              <style>
+                #previewSnippet table { border-collapse: collapse; width: 100%; font-size: 12px; }
+                #previewSnippet th, #previewSnippet td { border: 1px solid #ddd; padding: 6px 8px; text-align: left; color: #333; }
+                #previewSnippet th { background: #4a90e2; color: white; }
+                #previewSnippet tr:nth-child(even) { background: #f9f9f9; }
+              </style>
+              ${previewHTML}
+              ${range.e.r > 5 ? `<p style="text-align: center; color: #666; margin-top: 8px; font-size: 11px;">${currentLang === 'he' ? `...ו-${range.e.r - 5} שורות נוספות` : `...and ${range.e.r - 5} more rows`}</p>` : ''}
+            </div>
+          `;
+        } else if (type === 'image' || type === 'jpg' || type === 'png' || type === 'jpeg' || type === 'gif') {
+          // Show image preview
+          snippetEl.innerHTML = `
+            <img src="${docData.url}" style="max-width: 100%; max-height: 400px; border-radius: 8px; display: block; margin: 0 auto;" alt="${docData.title}">
+          `;
+        } else {
+          // Fallback
+          snippetEl.innerHTML = `<p>${currentLang === 'he' ? 'לחץ "פתח מסמך מלא" כדי לצפות' : 'Click "Open Full Document" to view'}</p>`;
+        }
+      } catch (error) {
+        console.error('Error loading preview:', error);
+        snippetEl.innerHTML = `
+          <p style="color: rgba(255,255,255,0.6);">
+            ${currentLang === 'he' ? 'לא ניתן להציג תצוגה מקדימה. לחץ "פתח מסמך מלא" כדי לצפות.' : 'Preview not available. Click "Open Full Document" to view.'}
+          </p>
+        `;
+      }
+    }
+    
+    // Close document preview modal
+    function closeDocPreview() {
+      const modal = document.getElementById('docPreviewModal');
+      modal.classList.remove('active');
+      document.body.style.overflow = '';
+    }
+    
+    // Close preview if clicking backdrop
+    function closePreviewIfBackdrop(event) {
+      if (event.target.id === 'docPreviewModal') {
+        closeDocPreview();
+      }
+    }
+    
+    // Close preview with ESC key
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') {
+        const modal = document.getElementById('docPreviewModal');
+        if (modal.classList.contains('active')) {
+          closeDocPreview();
+        }
+      }
+    });
+    
+    // Go back to tree with current person as focus
+    function goBackToTree() {
+      const params = new URLSearchParams(window.location.search);
+      const personId = params.get('id');
+      const lang = params.get('lang') || localStorage.getItem('familyTreeLanguage') || 'he';
+      // Store the language so tree can use it
+      localStorage.setItem('familyTreeLanguage', lang);
+      if (personId) {
+        window.location.href = `family-tree.html?focus=${personId}`;
+      } else {
+        window.location.href = 'family-tree.html';
+      }
+    }
+
+    // Load person when page loads
+    window.addEventListener('DOMContentLoaded', () => {
+      // Update button states based on current language
+      const currentLang = langManager.getLang();
+      
+      // Set direction based on language
+      document.documentElement.setAttribute('dir', currentLang === 'he' ? 'rtl' : 'ltr');
+      
+      document.querySelectorAll('.lang-btn').forEach(btn => {
+        btn.classList.remove('active');
+        if ((btn.textContent === 'עברית' && currentLang === 'he') || 
+            (btn.textContent === 'English' && currentLang === 'en')) {
+          btn.classList.add('active');
+        }
+      });
+      
+      // Add event listeners for language buttons
+      document.querySelectorAll('.lang-btn[data-lang]').forEach(btn => {
+        btn.addEventListener('click', (event) => {
+          const lang = btn.getAttribute('data-lang');
+          switchPersonLang(lang, event.target);
+        });
+      });
+      
+      loadPerson();
+    });
+  </script>
+</body>
+</html>
