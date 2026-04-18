@@ -1585,8 +1585,22 @@
 
         async function loadData() {
             try {
-                const response = await fetch('./assets/data/people.json');
-                const data = await response.json();
+                const dataPath = './assets/data/people.json';
+                let data;
+
+                // Try local first, then fall back to BASE_URL
+                try {
+                    const localResponse = await fetch(dataPath);
+                    if (localResponse.ok) {
+                        data = await localResponse.json();
+                    }
+                } catch (e) { /* local not available */ }
+
+                if (!data) {
+                    const remoteResponse = await fetch(`${BASE_URL}assets/data/people.json`);
+                    if (!remoteResponse.ok) throw new Error('Failed to load people data');
+                    data = await remoteResponse.json();
+                }
                 
                 data.people.forEach(person => {
                     peopleMap.set(person.id, person);

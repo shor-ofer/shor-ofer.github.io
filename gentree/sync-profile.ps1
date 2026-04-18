@@ -26,9 +26,25 @@ param(
 $BaseUrl = "https://karmifamily.com/"
 $LocalRoot = $PSScriptRoot
 
+# Load people.json: try local first, fall back to remote
+function Load-PeopleJson {
+    $localPath = "$LocalRoot\assets\data\people.json"
+    if (Test-Path $localPath) {
+        return Get-Content -Path $localPath -Raw -Encoding UTF8 | ConvertFrom-Json
+    }
+    Write-Host "  people.json not found locally, downloading from $BaseUrl..." -ForegroundColor Yellow
+    try {
+        $response = Invoke-WebRequest -Uri "${BaseUrl}assets/data/people.json" -UseBasicParsing
+        return $response.Content | ConvertFrom-Json
+    } catch {
+        Write-Host "  Failed to download people.json: $($_.Exception.Message)" -ForegroundColor Red
+        exit 1
+    }
+}
+
 # List all available profiles from people.json
 if ($ListAll) {
-    $peopleJson = Get-Content -Path "$LocalRoot\assets\data\people.json" -Raw -Encoding UTF8 | ConvertFrom-Json
+    $peopleJson = Load-PeopleJson
     Write-Host "`nAvailable profiles:" -ForegroundColor Cyan
     Write-Host ""
     foreach ($person in $peopleJson.people) {
@@ -57,7 +73,7 @@ if (-not $ProfileFile) {
 }
 
 # Load people.json
-$peopleJson = Get-Content -Path "$LocalRoot\assets\data\people.json" -Raw -Encoding UTF8 | ConvertFrom-Json
+$peopleJson = Load-PeopleJson
 
 # Resolve input to list of person objects
 function Resolve-People {
