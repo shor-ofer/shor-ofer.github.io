@@ -1,0 +1,2251 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+    <title>Space Invaders - Phaser.js</title>
+    <script src="https://cdn.jsdelivr.net/npm/phaser@3.55.2/dist/phaser.js"></script>
+    <style>
+        html, body {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            background-color: #000;
+            overflow: hidden;
+        }
+        body {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+        #game {
+            /*  Phaser measures this box and fits the canvas inside it, so it has to
+                take whatever height the debug bar leaves over. */
+            flex: 1 1 auto;
+            width: 100%;
+            min-height: 0;
+        }
+        #game canvas {
+            /*  Inline canvases sit on the text baseline, which leaves a few pixels
+                of slack underneath them.  The frame is an outline rather than a
+                border so it never feeds back into the size Phaser measures. */
+            display: block;
+            background-color: #111;
+            outline: 2px solid #555;
+            border-radius: 8px;
+            /*  Keeps the browser from stealing drags for scrolling and pinch-zoom. */
+            touch-action: none;
+        }
+        #debug-bar {
+            /*  Development tools: hidden unless the page is opened with
+                ?debug=true, which adds the class below to the body. */
+            display: none;
+            align-items: center;
+            justify-content: center;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin: 10px 0 8px;
+            font-family: monospace;
+            font-size: 15px;
+            font-weight: bold;
+            color: #88ddff;
+        }
+        body.debug #debug-bar {
+            display: flex;
+        }
+        #debug-bar button {
+            height: 30px;
+            min-width: 38px;
+            padding: 0 10px;
+            font-size: 20px;
+            font-weight: bold;
+            color: #88ddff;
+            background: #111;
+            border: 2px solid #88ddff;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+        #drop-gifts {
+            font-size: 14px !important;
+        }
+        #toggle-sound {
+            font-size: 14px !important;
+            min-width: 76px;
+        }
+        #debug-bar button:hover {
+            background: #163041;
+        }
+        #level-label {
+            min-width: 76px;
+            text-align: center;
+        }
+        @media (max-width: 640px) {
+            #debug-bar {
+                gap: 8px;
+                margin: 6px 0;
+                font-size: 12px;
+            }
+            #debug-bar button {
+                height: 26px;
+                font-size: 16px;
+            }
+            #debug-hint {
+                display: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="game"></div>
+    <div id="debug-bar">
+        <button id="level-down" type="button" tabindex="-1">&minus;</button>
+        <span id="level-label">Level 1</span>
+        <button id="level-up" type="button" tabindex="-1">+</button>
+        <button id="drop-gifts" type="button" tabindex="-1">drop all gifts</button>
+        <button id="toggle-sound" type="button" tabindex="-1">sound on</button>
+        <span id="debug-hint">debug: jump levels (or press + / -), G drops every gift, M mutes</span>
+    </div>
+    <script>
+        //  ---- design resolution --------------------------------------------
+        //  The board is always the same 800 x 600 playfield, on every device: the
+        //  scale manager only shrinks the canvas to fit the screen, so nobody gets
+        //  a wider view or a longer run-up than anybody else.  Every coordinate in
+        //  the scene is derived from these two numbers.
+        const DESIGN = { width: 800, height: 600 };
+
+        //  ---- debug mode ---------------------------------------------------
+        //  The level stepper, the gift dropper and the on-screen readout are
+        //  development tools rather than part of the game, so they only exist
+        //  when the page is opened with ?debug=true.
+        const DEBUG = new URLSearchParams(window.location.search).get('debug') === 'true';
+        if (DEBUG) {
+            document.body.classList.add('debug');
+        }
+
+        //  ---- saved data ----------------------------------------------------
+        //  The scoreboard and the sound settings live in the browser's local
+        //  storage so they survive a reload.  A page opened straight off disk is
+        //  not always allowed to use it, so everything falls back to memory and
+        //  the game carries on regardless.
+        const STORE = {
+            memory: {},
+            read: function (key, fallback) {
+                try {
+                    const raw = window.localStorage.getItem(key);
+                    if (raw !== null) {
+                        return JSON.parse(raw);
+                    }
+                } catch (error) {
+                    //  Blocked or full: fall through to whatever is in memory.
+                }
+                return (key in this.memory) ? this.memory[key] : fallback;
+            },
+            write: function (key, value) {
+                this.memory[key] = value;
+                try {
+                    window.localStorage.setItem(key, JSON.stringify(value));
+                } catch (error) {
+                    //  Private mode or a blocked file:// origin: memory it is.
+                }
+            }
+        };
+
+        //  ---- scoreboard ----------------------------------------------------
+        const HIGH_SCORES = {
+            key: 'spaceInvaders.highScores',
+            size: 10,
+            //  Where the score from the last game landed, so the board can point
+            //  it out when the menu shows up again.
+            recent: 0,
+            list: function () {
+                const saved = STORE.read(this.key, []);
+                if (!Array.isArray(saved)) {
+                    return [];
+                }
+                return saved.filter(entry => entry && typeof entry.score === 'number');
+            },
+            best: function () {
+                const all = this.list();
+                return all.length > 0 ? all[0].score : 0;
+            },
+            submit: function (score, level) {
+                this.recent = 0;
+                if (!score || score <= 0) {
+                    return 0;
+                }
+                const entry = {
+                    score: score,
+                    level: level || 1,
+                    date: new Date().toISOString().slice(0, 10)
+                };
+                const all = this.list();
+                all.push(entry);
+                //  A tie keeps the older score ahead: sort is stable, and the new
+                //  entry went in last.
+                all.sort((a, b) => b.score - a.score);
+                const board = all.slice(0, this.size);
+                STORE.write(this.key, board);
+                this.recent = board.indexOf(entry) + 1;
+                return this.recent;
+            },
+            clear: function () {
+                this.recent = 0;
+                STORE.write(this.key, []);
+            }
+        };
+
+        //  ---- settings ------------------------------------------------------
+        const DEFAULT_VOLUME = 0.5;
+        const SETTINGS = {
+            key: 'spaceInvaders.settings',
+            values: null,
+            get: function (name, fallback) {
+                if (!this.values) {
+                    const saved = STORE.read(this.key, {});
+                    this.values = (saved && typeof saved === 'object') ? saved : {};
+                }
+                return (name in this.values) ? this.values[name] : fallback;
+            },
+            set: function (name, value) {
+                this.get(name);
+                this.values[name] = value;
+                STORE.write(this.key, this.values);
+            },
+            //  Both scenes start by matching the sound system to what was chosen
+            //  last time, before anything has a chance to make a noise.
+            applyTo: function (scene) {
+                scene.sound.mute = this.get('muted', false);
+                scene.sound.volume = this.get('volume', DEFAULT_VOLUME);
+            }
+        };
+
+        //  ---- artwork -------------------------------------------------------
+        //  Every sprite is generated by generate_assets.py.  Both scenes ask for
+        //  the same set and anything already in the texture cache is skipped, so
+        //  the menu paying for the artwork means the game starts instantly.
+        const ART = {
+            images: {
+                background: 'background.png',
+                player: 'player.png',
+                bullet_player: 'bullet_player.png',
+                bullet_invader: 'bullet_invader.png',
+                bonus_ship: 'bonus_ship.png',
+                shield_block: 'shield_block.png',
+                laser_beam: 'laser_beam.png',
+                force_field: 'force_field.png',
+                powerup_glow: 'powerup_glow.png'
+            },
+            sheets: {
+                invader_a: { file: 'invader_a_sheet.png', size: 80 },
+                invader_b: { file: 'invader_b_sheet.png', size: 80 },
+                invader_c: { file: 'invader_c_sheet.png', size: 80 },
+                explosion: { file: 'explosion_sheet.png', size: 80 },
+                powerup: { file: 'powerup_sheet.png', size: 48 }
+            },
+            load: function (scene) {
+                Object.keys(this.images).forEach(key => {
+                    if (!scene.textures.exists(key)) {
+                        scene.load.image(key, 'assets/' + this.images[key]);
+                    }
+                });
+                Object.keys(this.sheets).forEach(key => {
+                    if (scene.textures.exists(key)) {
+                        return;
+                    }
+                    const sheet = this.sheets[key];
+                    scene.load.spritesheet(key, 'assets/' + sheet.file, {
+                        frameWidth: sheet.size,
+                        frameHeight: sheet.size
+                    });
+                });
+            }
+        };
+
+        //  ---- sound ---------------------------------------------------------
+        //  Every effect is generated by generate_sounds.py.  The number is how
+        //  many copies may overlap: only <audio> playback needs them, and each
+        //  copy is one more element to fetch, so they are kept to the few effects
+        //  that really stack up.
+        const SFX = {
+            effects: {
+                sfx_shoot: 3,
+                sfx_laser: 1,
+                sfx_invader_die: 3,
+                sfx_armour_hit: 2,
+                sfx_shield_hit: 2,
+                sfx_player_hit: 1,
+                sfx_nuke: 1,
+                sfx_powerup: 1,
+                sfx_extra_life: 1,
+                sfx_force_field: 1,
+                sfx_spark: 2,
+                sfx_scramble: 1,
+                sfx_push: 1,
+                sfx_saucer: 1,
+                sfx_saucer_die: 1,
+                sfx_dive: 1,
+                sfx_wave_clear: 1,
+                sfx_level_start: 1,
+                sfx_game_over: 1,
+                sfx_march_0: 1,
+                sfx_march_1: 1,
+                sfx_march_2: 1,
+                sfx_march_3: 1
+            },
+            //  Sounds are fetched once the scene is already up rather than in
+            //  preload: reading dozens of <audio> elements off a filesystem is
+            //  slow and occasionally stalls, and nobody should stare at a blank
+            //  screen over a sound effect.  The menu usually gets them all in
+            //  while the player is reading it; whatever is still missing is asked
+            //  for again when the game starts.  Browsers drop a media request now
+            //  and then when a pile of them is in flight, so they go out a handful
+            //  at a time and anything that fell over is retried.
+            load: function (scene) {
+                let passes = 0;
+                const pass = () => {
+                    const missing = Object.keys(this.effects).filter(
+                        key => !scene.cache.audio.exists(key)
+                    );
+                    //  A scene that has been left behind stops asking: whichever
+                    //  scene comes next picks up where this one left off.
+                    const finished = scene.sys.settings.status >= Phaser.Scenes.SHUTDOWN;
+                    if (missing.length === 0 || passes >= 5 || finished) {
+                        return;
+                    }
+                    passes++;
+                    missing.forEach(key => {
+                        scene.load.audio(key, 'assets/' + key + '.wav', {
+                            instances: this.effects[key]
+                        });
+                    });
+                    scene.load.once('complete', () => scene.time.delayedCall(250, pass));
+                    scene.load.start();
+                };
+                scene.load.maxParallelDownloads = 4;
+                pass();
+            },
+            //  One entry point for every effect, so a missing or blocked audio
+            //  file can never take a scene down with it.
+            play: function (scene, key, volume) {
+                if (!scene.cache.audio.exists(key)) {
+                    return;
+                }
+                scene.sound.play(key, { volume: (volume === undefined) ? 1 : volume });
+            }
+        };
+
+        //  ---- the menu ------------------------------------------------------
+        //  Start page, scoreboard, options and credits, all drawn on the same
+        //  800 x 600 board as the game so every device sees the same layout.
+        const MENU_IDLE = '#8cffcd';
+        const MENU_ACTIVE = '#ffffff';
+
+        const MENU_SCENE = {
+            key: 'Menu',
+
+            preload: function () {
+                ART.load(this);
+            },
+
+            create: function () {
+                const W = this.scale.width;
+                const H = this.scale.height;
+
+                SETTINGS.applyTo(this);
+                SFX.load(this);
+
+                const sky = this.add.image(W / 2, H / 2, 'background');
+                sky.setScale(Math.max(W / 1600, H / 1200));
+                sky.setDepth(-10);
+
+                this.page = this.add.container(0, 0);
+                this.pageName = 'main';
+                this.buttons = [];
+                this.selected = 0;
+
+                //  ---- page furniture ------------------------------------------
+                this.label = function (text, y, size, colour, weight) {
+                    const item = this.add.text(W / 2, y, text, {
+                        fontFamily: 'monospace',
+                        fontSize: size + 'px',
+                        fill: colour,
+                        fontStyle: weight || 'bold',
+                        stroke: '#000000',
+                        strokeThickness: Math.max(3, Math.round(size / 8)),
+                        align: 'center'
+                    });
+                    item.setOrigin(0.5);
+                    this.page.add(item);
+                    return item;
+                };
+
+                this.button = function (text, y, action) {
+                    const item = this.label(text, y, 26, MENU_IDLE);
+                    item.setPadding(16, 10, 16, 10);
+                    item.action = action;
+                    item.setInteractive({ useHandCursor: true });
+                    item.on('pointerover', () => this.select(this.buttons.indexOf(item)));
+                    item.on('pointerdown', () => {
+                        this.select(this.buttons.indexOf(item));
+                        this.activate();
+                    });
+                    this.buttons.push(item);
+                    return item;
+                };
+
+                this.select = function (index) {
+                    if (this.buttons.length === 0) {
+                        return;
+                    }
+                    this.selected = Phaser.Math.Wrap(index, 0, this.buttons.length);
+                    this.buttons.forEach((button, i) => {
+                        const active = (i === this.selected);
+                        button.setColor(active ? MENU_ACTIVE : MENU_IDLE);
+                        button.setScale(active ? 1.08 : 1);
+                    });
+                };
+
+                this.activate = function () {
+                    const button = this.buttons[this.selected];
+                    if (button) {
+                        SFX.play(this, 'sfx_powerup', 0.5);
+                        button.action();
+                    }
+                };
+
+                this.show = function (name) {
+                    //  The decorations tween, so they are stopped before the page
+                    //  they belong to is torn down.
+                    this.tweens.killAll();
+                    this.page.destroy();
+                    this.page = this.add.container(0, 0);
+                    this.buttons = [];
+                    this.selected = 0;
+                    this.pageName = name;
+                    PAGES[name].call(this, W, H);
+                    this.select(0);
+                };
+
+                //  ---- the pages -----------------------------------------------
+                const PAGES = {
+                    main: function (W, H) {
+                        this.label('SPACE INVADERS', 92, 52, '#00ff00');
+                        this.label('hold the line', 134, 16, MENU_IDLE, 'normal');
+
+                        //  A row of the enemy, purely for the look of the thing.
+                        ['invader_a', 'invader_b', 'invader_c'].forEach((key, i) => {
+                            const sprite = this.add.sprite(W / 2 + (i - 1) * 84, 196, key, 0);
+                            sprite.setDisplaySize(46, 46);
+                            this.page.add(sprite);
+                            this.tweens.add({
+                                targets: sprite,
+                                y: 186,
+                                duration: 760,
+                                delay: i * 130,
+                                yoyo: true,
+                                repeat: -1,
+                                ease: 'Sine.easeInOut'
+                            });
+                        });
+
+                        const best = HIGH_SCORES.best();
+                        this.label(best > 0 ? 'BEST   ' + best : 'nothing on the board yet',
+                                   250, 18, '#ffdd55');
+
+                        this.button('PLAY', 312, () => this.scene.start('Game'));
+                        this.button('HIGH SCORES', 362, () => this.show('scores'));
+                        this.button('OPTIONS', 412, () => this.show('options'));
+                        this.button('CREDITS', 462, () => this.show('credits'));
+
+                        this.label('arrows or drag to move     space or hold to fire',
+                                   548, 15, '#88ddff', 'normal');
+                    },
+
+                    scores: function (W, H) {
+                        this.label('HIGH SCORES', 76, 38, '#ffdd55');
+
+                        const board = HIGH_SCORES.list();
+                        if (board.length === 0) {
+                            this.label('the board is empty', 230, 26, MENU_IDLE);
+                            this.label('play a round and put something on it',
+                                       268, 16, '#ffffff', 'normal');
+                        } else {
+                            board.forEach((entry, i) => {
+                                const row = String(i + 1).padStart(2, ' ') + '.  ' +
+                                    String(entry.score).padStart(7, ' ') + '   level ' +
+                                    String(entry.level || 1).padStart(2, ' ') + '   ' +
+                                    (entry.date || '');
+                                //  The score from the last game is called out in green.
+                                let colour = '#ffffff';
+                                if (HIGH_SCORES.recent === i + 1) {
+                                    colour = '#00ff00';
+                                } else if (i === 0) {
+                                    colour = '#ffdd55';
+                                }
+                                this.label(row, 142 + i * 34, 19, colour, 'normal');
+                            });
+                        }
+
+                        this.button('BACK', 542, () => this.show('main'));
+                    },
+
+                    options: function (W, H) {
+                        this.label('OPTIONS', 76, 38, MENU_IDLE);
+
+                        const soundButton = this.button('', 182, () => {
+                            this.sound.mute = !this.sound.mute;
+                            SETTINGS.set('muted', this.sound.mute);
+                            paint();
+                        });
+
+                        const volumeButton = this.button('', 242, () => {
+                            const steps = [0.25, 0.5, 0.75, 1];
+                            let nearest = 0;
+                            steps.forEach((step, i) => {
+                                if (Math.abs(step - this.sound.volume) <
+                                    Math.abs(steps[nearest] - this.sound.volume)) {
+                                    nearest = i;
+                                }
+                            });
+                            this.sound.volume = steps[(nearest + 1) % steps.length];
+                            SETTINGS.set('volume', this.sound.volume);
+                            paint();
+                            SFX.play(this, 'sfx_shoot', 0.8);
+                        });
+
+                        const clearButton = this.button('CLEAR HIGH SCORES', 302, () => {
+                            HIGH_SCORES.clear();
+                            clearButton.setText('SCOREBOARD CLEARED');
+                        });
+
+                        const paint = () => {
+                            soundButton.setText('SOUND    ' + (this.sound.mute ? 'OFF' : 'ON'));
+                            volumeButton.setText('VOLUME   ' + Math.round(this.sound.volume * 100) + '%');
+                        };
+                        paint();
+
+                        this.label('M mutes at any time', 372, 15, '#88ddff', 'normal');
+
+                        this.button('BACK', 470, () => this.show('main'));
+                    },
+
+                    credits: function (W, H) {
+                        this.label('CREDITS', 68, 38, '#ffdd55');
+
+                        this.label('OFER SHOR', 126, 30, '#ffdd55');
+                        this.label('had the idea and made it happen', 156, 16, '#ffffff', 'normal');
+
+                        this.label('GITHUB COPILOT', 212, 24, MENU_IDLE);
+                        this.label('with Claude Opus 5  -  wrote the game', 240, 16, '#ffffff', 'normal');
+
+                        this.label('generate_assets.py', 294, 22, '#88ddff');
+                        this.label('python + pillow  -  draws every sprite', 320, 16, '#ffffff', 'normal');
+
+                        this.label('generate_sounds.py', 372, 22, '#88ddff');
+                        this.label('python  -  synthesises every sound from scratch', 398, 16, '#ffffff', 'normal');
+
+                        this.label('built with Phaser 3', 452, 16, MENU_IDLE, 'normal');
+
+                        this.button('BACK', 528, () => this.show('main'));
+                    }
+                };
+
+                //  ---- keyboard ------------------------------------------------
+                this.input.keyboard.on('keydown-UP', () => this.select(this.selected - 1));
+                this.input.keyboard.on('keydown-DOWN', () => this.select(this.selected + 1));
+                this.input.keyboard.on('keydown-ENTER', () => this.activate());
+                this.input.keyboard.on('keydown-SPACE', () => this.activate());
+                this.input.keyboard.on('keydown-ESC', () => {
+                    if (this.pageName !== 'main') {
+                        this.show('main');
+                    }
+                });
+                this.input.keyboard.on('keydown-M', () => {
+                    this.sound.mute = !this.sound.mute;
+                    SETTINGS.set('muted', this.sound.mute);
+                    if (this.pageName === 'options') {
+                        this.show('options');
+                    }
+                });
+
+                this.show('main');
+            }
+        };
+
+        const config = {
+            type: Phaser.AUTO,
+            backgroundColor: '#000',
+            pixelArt: true,
+            scale: {
+                parent: 'game',
+                mode: Phaser.Scale.FIT,
+                autoCenter: Phaser.Scale.CENTER_BOTH,
+                //  Phaser would otherwise force 100% height onto the parent and
+                //  fight the flex layout above.
+                expandParent: false,
+                width: DESIGN.width,
+                height: DESIGN.height,
+                //  Never blow the board up past 1:1 on a big desktop window.
+                max: { width: DESIGN.width, height: DESIGN.height }
+            },
+            loader: {
+                //  <img> loading works from the file:// protocol, unlike XHR.
+                imageLoadType: 'HTMLImageElement'
+            },
+            audio: {
+                //  Web Audio decodes samples fetched over XHR, which a file:// page
+                //  is not allowed to do, so plain <audio> elements are used instead
+                //  when the game is opened straight off disk.
+                disableWebAudio: window.location.protocol === 'file:'
+            },
+            physics: {
+                default: 'arcade',
+                arcade: {
+                    debug: false
+                }
+            },
+            scene: [MENU_SCENE, {
+                key: 'Game',
+                preload: function () {
+                    ART.load(this);
+                },
+                create: function () {
+                    if (typeof this.physics === 'undefined' && typeof this.sys !== 'undefined' && typeof this.sys.game !== 'undefined') {
+                        this.physics = this.sys.game.physics;
+                    }
+
+                    //  ---- board layout --------------------------------------
+                    //  The playfield is the same on every device, so these are the
+                    //  classic 800 x 600 positions; they are written in terms of the
+                    //  design size so the whole board stays consistent if it is ever
+                    //  retuned in one place.
+                    const W = this.scale.width;
+                    const H = this.scale.height;
+                    this.viewW = W;
+                    this.viewH = H;
+
+                    this.gridStep = 50;                  // invader (40) + padding (10)
+                    this.gridRows = 5;
+                    this.gridCols = Phaser.Math.Clamp(
+                        Math.floor((W - 140) / this.gridStep) + 1, 5, 10
+                    );
+                    this.gridLeft = Math.round((W - (this.gridCols - 1) * this.gridStep) / 2);
+                    this.gridTop = Math.max(110, Math.round(H * 0.2));
+
+                    this.marchLeft = 50;                 // bounding-box limits for the swarm
+                    this.marchRight = W - 50;
+                    this.playerY = H - 50;
+                    this.bunkerTop = this.playerY - 95;
+                    //  The saucer flies through the empty sky above the swarm.
+                    this.bonusY = Math.max(70, this.gridTop - 60);
+
+                    //  Kept at 1 for the 800 x 600 board: they exist so the marching
+                    //  speeds stay tied to the board size rather than to bare numbers.
+                    this.speedX = W / 800;
+                    this.speedY = H / 600;
+                    this.dropScale = Phaser.Math.Clamp(H / 600, 1, 1.5);
+
+                    //  ---- sound ---------------------------------------------
+                    SETTINGS.applyTo(this);
+                    this.saucerSound = null;
+
+                    this.playSfx = function (key, volume) {
+                        SFX.play(this, key, volume);
+                    };
+
+                    this.startSaucerSound = function () {
+                        if (this.saucerSound || !this.cache.audio.exists('sfx_saucer')) {
+                            return;
+                        }
+                        this.saucerSound = this.sound.add('sfx_saucer', { loop: true, volume: 0.3 });
+                        this.saucerSound.play();
+                    };
+
+                    this.stopSaucerSound = function () {
+                        if (!this.saucerSound) {
+                            return;
+                        }
+                        this.saucerSound.stop();
+                        this.saucerSound.destroy();
+                        this.saucerSound = null;
+                    };
+
+                    //  The menu normally has these in hand already; this tops up
+                    //  anything that did not make it.
+                    SFX.load(this);
+
+                    this.quitToMenu = function () {
+                        //  The countdown and the player can both ask for the menu,
+                        //  so only the first request through here does anything.
+                        if (this.leavingToMenu) {
+                            return;
+                        }
+                        this.leavingToMenu = true;
+
+                        //  Bailing out mid-run still counts, but a finished game has
+                        //  already been put on the board by gameOver().
+                        if (!this.isGameOver) {
+                            HIGH_SCORES.submit(this.score, this.level);
+                        }
+                        this.stopSaucerSound();
+                        this.scene.start('Menu');
+                    };
+
+                    this.fireInvaderBullet = function () {
+                        const aliveInvaders = this.invaders.getChildren().filter(
+                            invader => invader.active && !invader.isDoomed
+                        );
+                        if (aliveInvaders.length === 0) {
+                            return;
+                        }
+
+                        const randomInvader = Phaser.Utils.Array.GetRandom(aliveInvaders);
+                        const bullet = this.add.sprite(randomInvader.x, randomInvader.y + 20, 'bullet_invader');
+                        bullet.setDisplaySize(4, 12);
+                        this.physics.add.existing(bullet);
+                        this.invaderBullets.add(bullet);
+                        bullet.body.setVelocityY(this.invaderBulletSpeed);
+                        bullet.body.setAllowGravity(false);
+                    };
+
+                    this.paintInvader = function (invader) {
+                        //  Armour plating is colour coded: orange while it still needs
+                        //  two hits, plain cyan once it is down to its last one.
+                        if (invader.hp > 1) {
+                            invader.setTint(this.ARMOUR_TINT);
+                        } else {
+                            invader.clearTint();
+                        }
+                    };
+
+                    this.hitInvader = function (bullet, invader) {
+                        const x = invader.x;
+                        const y = invader.y;
+
+                        bullet.destroy();
+
+                        if (invader.hp > 1 && !invader.isDoomed) {
+                            //  Armour soaks the shot: flash, then show the new colour.
+                            invader.hp -= 1;
+                            this.score += 5;
+                            this.scoreText.setText('Score: ' + this.score);
+                            this.playSfx('sfx_armour_hit', 0.6);
+
+                            invader.setTint(0xffffff);
+                            this.time.delayedCall(90, () => {
+                                if (invader.active && !invader.isDoomed) {
+                                    this.paintInvader(invader);
+                                }
+                            });
+
+                            const spark = this.add.sprite(x, y, 'explosion');
+                            spark.setDisplaySize(26, 26);
+                            spark.setDepth(5);
+                            spark.play('explode');
+                            spark.once('animationcomplete', () => spark.destroy());
+                            return;
+                        }
+
+                        const points = 10 * (invader.maxHp || 1);
+                        invader.destroy();
+                        this.score += points;
+                        this.scoreText.setText('Score: ' + this.score);
+                        this.playSfx('sfx_invader_die', 0.5);
+
+                        //  Roughly one in eight kills leaves a capsule behind.
+                        if (Phaser.Math.Between(1, 8) === 1) {
+                            this.dropPowerUp(x, y);
+                        }
+
+                        const boom = this.add.sprite(x, y, 'explosion');
+                        boom.setDisplaySize(52, 52);
+                        boom.setDepth(5);
+                        boom.play('explode');
+                        boom.once('animationcomplete', () => boom.destroy());
+                    };
+
+                    this.spawnShields = function () {
+                        //  Classic bunker outline: X = block, . = gap.
+                        const shape = [
+                            '..XXXX..',
+                            '.XXXXXX.',
+                            'XXXXXXXX',
+                            'XXXXXXXX',
+                            'XXX..XXX',
+                            'XX....XX'
+                        ];
+                        const blockSize = 10;
+                        //  Cover thins out every two levels, and from level 4 each
+                        //  block crumbles in a single hit instead of two.  The bunker
+                        //  centres are fractions of the board width so they spread
+                        //  correctly on a narrow phone board too.
+                        const layouts = {
+                            4: [0.1625, 0.3875, 0.6125, 0.8375],
+                            3: [0.225, 0.5, 0.775],
+                            2: [0.325, 0.675],
+                            1: [0.5]
+                        };
+                        const centres = layouts[this.shieldCount].map(f => Math.round(f * this.viewW));
+                        const topY = this.bunkerTop;
+
+                        this.shields.clear(true, true);
+
+                        centres.forEach(centreX => {
+                            const originX = centreX - (shape[0].length * blockSize) / 2 + blockSize / 2;
+                            for (let row = 0; row < shape.length; row++) {
+                                for (let col = 0; col < shape[row].length; col++) {
+                                    if (shape[row][col] !== 'X') continue;
+
+                                    const block = this.add.sprite(
+                                        originX + col * blockSize,
+                                        topY + row * blockSize,
+                                        'shield_block'
+                                    );
+                                    block.setDisplaySize(blockSize, blockSize);
+                                    block.setTint(this.shieldBlockHp > 1 ? 0x00ff88 : 0xffaa00);
+                                    block.setDepth(4);
+                                    block.hp = this.shieldBlockHp;
+                                    this.physics.add.existing(block);
+                                    this.shields.add(block);
+                                    block.body.setAllowGravity(false);
+                                    block.body.setImmovable(true);
+                                }
+                            }
+                        });
+                    };
+
+                    this.hitShield = function (objA, objB) {
+                        //  Either argument may be the block, depending on collision order.
+                        const block = this.shields.contains(objA) ? objA : objB;
+                        const bullet = (block === objA) ? objB : objA;
+
+                        if (!block || !block.active || !bullet || !bullet.active) {
+                            return;
+                        }
+
+                        bullet.destroy();
+                        block.hp -= 1;
+                        this.playSfx('sfx_shield_hit', 0.35);
+
+                        if (block.hp <= 0) {
+                            block.destroy();
+                        } else {
+                            //  Scorched block: green turns amber before it crumbles.
+                            block.setTint(0xffaa00);
+                        }
+                    };
+
+                    this.crushShield = function (objA, objB) {
+                        //  Invaders erase any bunker they march into.
+                        const block = this.shields.contains(objA) ? objA : objB;
+                        if (block && block.active) {
+                            block.destroy();
+                        }
+                    };
+
+                    this.launchDiver = function () {
+                        const candidates = this.invaders.getChildren().filter(
+                            invader => invader.active && !invader.isDiving && !invader.isDoomed
+                        );
+                        if (candidates.length === 0) {
+                            return;
+                        }
+
+                        const diver = Phaser.Utils.Array.GetRandom(candidates);
+                        diver.isDiving = true;
+                        diver.setDepth(7);
+                        this.playSfx('sfx_dive', 0.45);
+                        this.physics.moveTo(diver, this.player.x, this.player.y, this.diveSpeed);
+                    };
+
+                    this.hitPlayerByInvader = function (objA, objB) {
+                        const ship = (objA === this.player) ? objA : objB;
+                        const invader = (ship === objA) ? objB : objA;
+
+                        if (!ship || !ship.active || !invader || !invader.active || !invader.isDiving) {
+                            return;
+                        }
+
+                        const x = invader.x;
+                        const y = invader.y;
+                        invader.destroy();
+
+                        const boom = this.add.sprite(x, y, 'explosion');
+                        boom.setDisplaySize(64, 64);
+                        boom.setDepth(8);
+                        boom.play('explode');
+                        boom.once('animationcomplete', () => boom.destroy());
+
+                        if (this.time.now < this.shieldUntil) {
+                            this.shieldSpark(x, y);
+                            return;
+                        }
+
+                        if (this.time.now < this.playerHitUntil) {
+                            return;
+                        }
+
+                        this.lives -= 1;
+                        this.livesText.setText('Lives: ' + this.lives);
+                        this.playerHitUntil = this.time.now + 250;
+                        this.playSfx('sfx_player_hit', 0.8);
+
+                        if (this.lives <= 0) {
+                            this.gameOver();
+                        }
+                    };
+
+                    this.changeLevel = function (delta) {
+                        //  Debug helper: jump straight to any level to inspect its difficulty.
+                        const target = Phaser.Math.Clamp(this.level + delta, 1, 99);
+                        if (target === this.level) {
+                            return;
+                        }
+
+                        if (this.isGameOver) {
+                            //  Lift the game-over state so the jumped-to level is playable.
+                            this.isGameOver = false;
+                            this.physics.resume();
+                            this.gameOverTexts.forEach(text => text.destroy());
+                            this.gameOverTexts = [];
+                            this.lives = Math.max(1, this.lives);
+                            this.livesText.setText('Lives: ' + this.lives);
+                        }
+
+                        this.startLevel(target);
+                    };
+
+                    this.spawnBonusShip = function () {
+                        const fromLeft = Phaser.Math.Between(0, 1) === 0;
+                        const ship = this.add.sprite(fromLeft ? -40 : this.viewW + 40, this.bonusY, 'bonus_ship');
+                        ship.setDisplaySize(60, 24);
+                        ship.setDepth(6);
+                        this.physics.add.existing(ship);
+                        this.bonusShips.add(ship);
+                        ship.body.setAllowGravity(false);
+                        ship.body.setVelocityX((fromLeft ? 130 : -130) * this.speedX);
+                        this.startSaucerSound();
+                    };
+
+                    this.hitBonusShip = function (objA, objB) {
+                        const saucer = this.bonusShips.contains(objA) ? objA : objB;
+                        const bullet = (saucer === objA) ? objB : objA;
+
+                        if (!saucer || !saucer.active || !bullet || !bullet.active) {
+                            return;
+                        }
+
+                        const x = saucer.x;
+                        const y = saucer.y;
+                        const points = Phaser.Utils.Array.GetRandom([50, 100, 150, 300]);
+
+                        bullet.destroy();
+                        saucer.destroy();
+                        this.score += points;
+                        this.scoreText.setText('Score: ' + this.score);
+                        this.stopSaucerSound();
+                        this.playSfx('sfx_saucer_die', 0.7);
+
+                        const boom = this.add.sprite(x, y, 'explosion');
+                        boom.setDisplaySize(64, 64);
+                        boom.setDepth(6);
+                        boom.play('explode');
+                        boom.once('animationcomplete', () => boom.destroy());
+
+                        this.floatLabel(x, y, '+' + points, '#ffdd33');
+
+                        //  The saucer always pays out a capsule as well.
+                        this.dropPowerUp(x, y);
+                    };
+
+                    this.floatLabel = function (x, y, text, colour) {
+                        const label = this.add.text(x, y, text, {
+                            fontSize: '22px',
+                            fill: colour,
+                            fontStyle: 'bold',
+                            stroke: '#000000',
+                            strokeThickness: 4
+                        });
+                        label.setOrigin(0.5);
+                        label.setDepth(100);
+                        this.tweens.add({
+                            targets: label,
+                            y: y - 34,
+                            alpha: 0,
+                            duration: 900,
+                            onComplete: () => label.destroy()
+                        });
+                    };
+
+                    this.attachGiftGlow = function (capsule, index) {
+                        //  A soft, additive halo in the capsule's own colour. It is a
+                        //  separate sprite so it can pulse without touching the capsule.
+                        const glow = this.add.sprite(capsule.x, capsule.y, 'powerup_glow');
+                        glow.setDisplaySize(58, 58);
+                        glow.setTint(this.POWER_TINTS[index]);
+                        glow.setBlendMode(Phaser.BlendModes.ADD);
+                        glow.setAlpha(0.6);
+                        glow.setDepth(6);
+                        glow.owner = capsule;
+                        this.powerGlows.push(glow);
+
+                        this.tweens.add({
+                            targets: glow,
+                            alpha: 1,
+                            scale: glow.scaleX * 1.22,
+                            duration: 620,
+                            yoyo: true,
+                            repeat: -1
+                        });
+                    };
+
+                    this.dropPowerUp = function (x, y) {
+                        //  Weighted pick so the strong gifts show up less often.
+                        const total = this.POWER_WEIGHTS.reduce((sum, weight) => sum + weight, 0);
+                        let roll = Phaser.Math.Between(1, total);
+                        let index = 0;
+                        while (roll > this.POWER_WEIGHTS[index]) {
+                            roll -= this.POWER_WEIGHTS[index];
+                            index += 1;
+                        }
+
+                        const capsule = this.add.sprite(x, y, 'powerup', index);
+                        capsule.powerType = this.POWER_TYPES[index];
+                        capsule.setDisplaySize(30, 30);
+                        capsule.setDepth(7);
+                        this.physics.add.existing(capsule);
+                        this.powerUps.add(capsule);
+                        capsule.body.setAllowGravity(false);
+                        capsule.body.setVelocityY(95 * this.speedY);
+                        this.attachGiftGlow(capsule, index);
+                    };
+
+                    this.dropAllGifts = function () {
+                        //  Debug helper: one of every capsule, fanned out across the board
+                        //  and stacked above the top edge so they arrive one at a time.
+                        if (this.isGameOver) {
+                            return;
+                        }
+
+                        const margin = this.viewW * 0.125;
+                        const spread = (this.viewW - margin * 2) / (this.POWER_TYPES.length - 1);
+
+                        this.POWER_TYPES.forEach((type, index) => {
+                            const x = margin + index * spread;
+                            const capsule = this.add.sprite(x, 20 - index * 70, 'powerup', index);
+                            capsule.powerType = type;
+                            capsule.setDisplaySize(30, 30);
+                            capsule.setDepth(7);
+                            this.physics.add.existing(capsule);
+                            this.powerUps.add(capsule);
+                            capsule.body.setAllowGravity(false);
+                            capsule.body.setVelocityY(95 * this.speedY);
+                            this.attachGiftGlow(capsule, index);
+                        });
+                    };
+
+                    this.collectPowerUp = function (objA, objB) {
+                        const capsule = this.powerUps.contains(objA) ? objA : objB;
+                        if (!capsule || !capsule.active || !this.player.active) {
+                            return;
+                        }
+
+                        const type = capsule.powerType;
+                        capsule.destroy();
+                        this.playSfx('sfx_powerup', 0.5);
+                        this.applyPowerUp(type);
+                    };
+
+                    this.applyPowerUp = function (type) {
+                        const now = this.time.now;
+                        const x = this.player.x;
+                        const y = this.player.y - 40;
+
+                        if (type === 'rapid') {
+                            this.rapidUntil = now + 8000;
+                            this.floatLabel(x, y, 'RAPID FIRE', '#ffbe28');
+                        } else if (type === 'multi') {
+                            this.multiUntil = now + 10000;
+                            this.floatLabel(x, y, 'TRIPLE SHOT', '#ff7828');
+                        } else if (type === 'laser') {
+                            this.fireLaser();
+                            this.floatLabel(x, y, 'LASER', '#ff3c3c');
+                        } else if (type === 'life') {
+                            this.lives = Math.min(5, this.lives + 1);
+                            this.livesText.setText('Lives: ' + this.lives);
+                            this.playSfx('sfx_extra_life', 0.8);
+                            this.floatLabel(x, y, '+1 LIFE', '#3ce66e');
+                        } else if (type === 'twin') {
+                            this.twinUntil = now + 12000;
+                            this.spawnWingman();
+                            this.floatLabel(x, y, 'TWIN SHIP', '#46c8ff');
+                        } else if (type === 'push') {
+                            this.pushInvadersBack();
+                            this.playSfx('sfx_push', 0.7);
+                            this.floatLabel(x, y, 'PUSH BACK', '#b478ff');
+                        } else if (type === 'nuke') {
+                            this.nukeInvaders();
+                            this.floatLabel(x, y, 'MEGA BOMB', '#ff46be');
+                        } else if (type === 'shield') {
+                            this.shieldUntil = now + 7000;
+                            this.raiseForceField();
+                            this.playSfx('sfx_force_field', 0.7);
+                            this.floatLabel(x, y, 'FORCE FIELD', '#c8d7eb');
+                        } else if (type === 'scramble') {
+                            this.scrambleInvaders();
+                            this.playSfx('sfx_scramble', 0.6);
+                            this.floatLabel(x, y, 'SCRAMBLE', '#3cdcbe');
+                        }
+                    };
+
+                    this.raiseForceField = function () {
+                        //  A bubble that burns up anything that touches it. Re-collecting
+                        //  the capsule just extends the timer on the existing bubble.
+                        if (this.forceField) {
+                            return;
+                        }
+
+                        const bubble = this.add.sprite(this.player.x, this.player.y, 'force_field');
+                        bubble.setDisplaySize(88, 88);
+                        bubble.setDepth(9);
+                        //  Additive blending makes the rim glow against the dark sky
+                        //  while leaving the ship visible through the middle.
+                        bubble.setBlendMode(Phaser.BlendModes.ADD);
+                        bubble.baseScale = bubble.scaleX;
+                        this.forceField = bubble;
+                        this.tweens.add({
+                            targets: bubble,
+                            scale: bubble.baseScale * 1.07,
+                            alpha: { from: 0.75, to: 1 },
+                            duration: 520,
+                            yoyo: true,
+                            repeat: -1
+                        });
+                        this.tweens.add({
+                            targets: bubble,
+                            angle: 360,
+                            duration: 6000,
+                            repeat: -1
+                        });
+                    };
+
+                    this.dropForceField = function () {
+                        if (!this.forceField) {
+                            return;
+                        }
+
+                        const bubble = this.forceField;
+                        this.forceField = null;
+                        this.tweens.killTweensOf(bubble);
+                        this.tweens.add({
+                            targets: bubble,
+                            alpha: 0,
+                            scale: bubble.baseScale * 1.4,
+                            duration: 260,
+                            onComplete: () => bubble.destroy()
+                        });
+                    };
+
+                    this.shieldSpark = function (x, y) {
+                        const spark = this.add.circle(x, y, 7, 0xaaddff, 0.9);
+                        spark.setDepth(10);
+                        this.playSfx('sfx_spark', 0.45);
+                        this.tweens.add({
+                            targets: spark,
+                            alpha: 0,
+                            scale: 2,
+                            duration: 220,
+                            onComplete: () => spark.destroy()
+                        });
+                    };
+
+                    this.pushInvadersBack = function () {
+                        //  Shoves the whole swarm back to the row it started the level on
+                        //  and aborts any dive already in progress.
+                        this.invaders.getChildren().forEach(invader => {
+                            if (!invader.active) return;
+
+                            if (invader.isDiving) {
+                                invader.isDiving = false;
+                                invader.setDepth(0);
+                            }
+                            if (invader.body) {
+                                invader.body.setVelocity(0, 0);
+                            }
+
+                            const targetY = invader.homeY;
+                            if (invader.y <= targetY) return;
+
+                            this.tweens.add({
+                                targets: invader,
+                                y: targetY,
+                                duration: 420,
+                                ease: 'Back.easeOut',
+                                onUpdate: () => {
+                                    if (invader.body) invader.body.updateFromGameObject();
+                                },
+                                onComplete: () => {
+                                    if (invader.body) invader.body.updateFromGameObject();
+                                }
+                            });
+                        });
+                    };
+
+                    this.scrambleInvaders = function () {
+                        //  Re-forms the swarm: the survivors are packed into a gap-free
+                        //  block at the front of the formation, then shuffled so every
+                        //  invader lands in a different slot than it started in.
+                        const movers = this.invaders.getChildren().filter(
+                            invader => invader.active && !invader.isDiving && !invader.isDoomed
+                        );
+                        if (movers.length < 2) {
+                            return;
+                        }
+
+                        const spacing = this.gridStep;
+                        const cols = this.gridCols;
+                        const ref = movers[0];
+
+                        //  The whole block marches and drops together, so any invader
+                        //  gives the current origin of the grid it belongs to.
+                        const originX = ref.x - ref.col * spacing;
+                        const originY = ref.y - ref.row * spacing;
+                        const homeOriginY = ref.homeY - ref.row * spacing;
+
+                        const fullRows = Math.floor(movers.length / cols);
+                        const remainder = movers.length % cols;
+                        const slots = [];
+
+                        for (let row = 0; row < fullRows; row++) {
+                            for (let col = 0; col < cols; col++) {
+                                slots.push({ row: row, col: col });
+                            }
+                        }
+                        if (remainder > 0) {
+                            //  A partial row is centred so the block stays symmetrical.
+                            const offset = (cols - remainder) / 2;
+                            for (let i = 0; i < remainder; i++) {
+                                slots.push({ row: fullRows, col: offset + i });
+                            }
+                        }
+
+                        //  Closing the gaps can push the block off the side it drifted
+                        //  to, so slide it back inside the marching bounds.
+                        const columns = slots.map(slot => slot.col);
+                        const leftX = originX + Math.min.apply(null, columns) * spacing;
+                        const rightX = originX + Math.max.apply(null, columns) * spacing;
+                        const leftLimit = this.marchLeft + 20;
+                        const rightLimit = this.marchRight - 20;
+                        let shift = 0;
+                        if (leftX < leftLimit) {
+                            shift = (leftLimit - leftX) / spacing;
+                        } else if (rightX > rightLimit) {
+                            shift = (rightLimit - rightX) / spacing;
+                        }
+
+                        slots.forEach(slot => {
+                            slot.col += shift;
+                            slot.x = originX + slot.col * spacing;
+                            slot.y = originY + slot.row * spacing;
+                            slot.homeY = homeOriginY + slot.row * spacing;
+                        });
+
+                        Phaser.Utils.Array.Shuffle(slots);
+
+                        const hops = movers.map((invader, index) => {
+                            const slot = slots[index];
+                            invader.row = slot.row;
+                            invader.col = slot.col;
+                            invader.homeY = slot.homeY;
+                            return {
+                                invader: invader,
+                                dx: slot.x - invader.x,
+                                dy: slot.y - invader.y
+                            };
+                        });
+
+                        //  The offsets are applied as deltas rather than absolute
+                        //  positions so the swarm keeps marching while it reshuffles.
+                        const progress = { p: 0 };
+                        let last = 0;
+                        this.tweens.add({
+                            targets: progress,
+                            p: 1,
+                            duration: 520,
+                            ease: 'Cubic.easeInOut',
+                            onUpdate: () => {
+                                const step = progress.p - last;
+                                last = progress.p;
+                                hops.forEach(hop => {
+                                    const invader = hop.invader;
+                                    if (!invader.active || invader.isDiving) return;
+
+                                    invader.x += hop.dx * step;
+                                    invader.y += hop.dy * step;
+                                    if (invader.body) {
+                                        invader.body.updateFromGameObject();
+                                    }
+                                });
+                            }
+                        });
+                    };
+
+                    this.nukeInvaders = function () {
+                        //  Wipes the screen: every invader is doomed, but they cook off
+                        //  one by one over the next couple of seconds.
+                        const flash = this.add.rectangle(
+                            this.viewW / 2, this.viewH / 2, this.viewW, this.viewH, 0xffffff
+                        );
+                        flash.setDepth(50);
+                        flash.setAlpha(0.75);
+                        this.playSfx('sfx_nuke', 1);
+                        this.tweens.add({
+                            targets: flash,
+                            alpha: 0,
+                            duration: 450,
+                            onComplete: () => flash.destroy()
+                        });
+
+                        this.invaderBullets.clear(true, true);
+
+                        this.invaders.getChildren().slice().forEach(invader => {
+                            if (!invader.active || invader.isDoomed) return;
+
+                            //  Doomed invaders stop diving, shooting and being picked on.
+                            invader.isDoomed = true;
+                            invader.isDiving = false;
+                            invader.setDepth(0);
+                            invader.setTint(0xff6688);
+                            if (invader.body) {
+                                invader.body.setVelocity(0, 0);
+                            }
+
+                            this.time.delayedCall(Phaser.Math.Between(500, 2000), () => {
+                                if (!invader.active) return;
+
+                                const boom = this.add.sprite(invader.x, invader.y, 'explosion');
+                                boom.setDisplaySize(60, 60);
+                                boom.setDepth(51);
+                                boom.play('explode');
+                                boom.once('animationcomplete', () => boom.destroy());
+
+                                const points = 10 * (invader.maxHp || 1);
+                                invader.destroy();
+                                this.score += points;
+                                this.scoreText.setText('Score: ' + this.score);
+                            });
+                        });
+                    };
+
+                    this.fireLaser = function () {
+                        //  Vaporises everything in the column directly above the ship.
+                        const beamHeight = this.player.y - 30;
+                        this.playSfx('sfx_laser', 0.9);
+                        const beam = this.add.sprite(this.player.x, beamHeight / 2, 'laser_beam');
+                        beam.setDisplaySize(18, beamHeight);
+                        beam.setDepth(9);
+                        this.tweens.add({
+                            targets: beam,
+                            alpha: 0,
+                            duration: 320,
+                            onComplete: () => beam.destroy()
+                        });
+
+                        const reach = 20;
+                        let killed = 0;
+                        let points = 0;
+
+                        this.invaders.getChildren().slice().forEach(invader => {
+                            if (!invader.active) return;
+                            if (Math.abs(invader.x - this.player.x) > reach + invader.displayWidth / 2) return;
+
+                            const boom = this.add.sprite(invader.x, invader.y, 'explosion');
+                            boom.setDisplaySize(52, 52);
+                            boom.setDepth(5);
+                            boom.play('explode');
+                            boom.once('animationcomplete', () => boom.destroy());
+                            points += 10 * (invader.maxHp || 1);
+                            invader.destroy();
+                            killed += 1;
+                        });
+
+                        this.invaderBullets.getChildren().slice().forEach(bullet => {
+                            if (bullet.active && Math.abs(bullet.x - this.player.x) <= reach) {
+                                bullet.destroy();
+                            }
+                        });
+
+                        if (killed > 0) {
+                            this.score += points;
+                            this.scoreText.setText('Score: ' + this.score);
+                        }
+                    };
+
+                    this.spawnWingman = function () {
+                        if (this.wingmen.countActive() > 0) {
+                            return;   //  already flying: the timer above just got extended
+                        }
+
+                        //  Dock the wingman on whichever side has more room.
+                        const offsetX = (this.player.x > this.viewW / 2) ? -70 : 70;
+                        const wingman = this.add.sprite(this.player.x + offsetX, this.player.y, 'player');
+                        wingman.offsetX = offsetX;
+                        wingman.setDisplaySize(60, 20);
+                        wingman.setTint(0x00ffff);
+                        wingman.setDepth(10);
+                        this.physics.add.existing(wingman);
+                        this.wingmen.add(wingman);
+                        wingman.body.setAllowGravity(false);
+                        wingman.body.setImmovable(true);
+                    };
+
+                    this.hitWingman = function (objA, objB) {
+                        //  The wingman soaks one hit instead of the player losing a life.
+                        const wingman = this.wingmen.contains(objA) ? objA : objB;
+                        const bullet = (wingman === objA) ? objB : objA;
+
+                        if (!wingman || !wingman.active || !bullet || !bullet.active) {
+                            return;
+                        }
+
+                        const x = wingman.x;
+                        const y = wingman.y;
+                        bullet.destroy();
+                        wingman.destroy();
+
+                        const boom = this.add.sprite(x, y, 'explosion');
+                        boom.setDisplaySize(56, 56);
+                        boom.setDepth(10);
+                        boom.play('explode');
+                        boom.once('animationcomplete', () => boom.destroy());
+                    };
+
+                    this.firePlayerBullet = function (x, y, velocityX) {
+                        const bullet = this.add.sprite(x, y, 'bullet_player');
+                        bullet.setDisplaySize(4, 12);
+                        this.physics.add.existing(bullet);
+                        this.bullets.add(bullet);
+                        bullet.body.setVelocity(velocityX * this.speedX, -300 * this.speedY);
+                        bullet.body.setAllowGravity(false);
+                    };
+
+                    this.fireVolley = function () {
+                        const spread = (this.time.now < this.multiUntil) ? [-110, 0, 110] : [0];
+                        const shooters = [this.player].concat(
+                            this.wingmen.getChildren().filter(wingman => wingman.active)
+                        );
+
+                        this.playSfx('sfx_shoot', 0.45);
+
+                        shooters.forEach(ship => {
+                            spread.forEach(velocityX => {
+                                this.firePlayerBullet(ship.x, ship.y - 20, velocityX);
+                            });
+                        });
+                    };
+
+                    this.hitPlayer = function (objA, objB) {
+                        //  Phaser 3.55 invokes overlap(group, sprite) callbacks as (sprite, groupChild),
+                        //  so resolve which argument is the ship and which is the bullet.
+                        const ship = (objA === this.player) ? objA : objB;
+                        const bullet = (ship === objA) ? objB : objA;
+
+                        if (!ship || !ship.active || !bullet || !bullet.active) {
+                            return;
+                        }
+
+                        bullet.destroy();
+
+                        if (this.time.now < this.shieldUntil) {
+                            this.shieldSpark(bullet.x, bullet.y);
+                            return;
+                        }
+
+                        if (this.time.now < this.playerHitUntil) {
+                            return;
+                        }
+
+                        this.lives -= 1;
+                        this.livesText.setText('Lives: ' + this.lives);
+                        this.playerHitUntil = this.time.now + 250;
+                        this.playSfx('sfx_player_hit', 0.8);
+
+                        if (this.lives <= 0) {
+                            this.gameOver();
+                        }
+                    };
+
+                    this.gameOver = function () {
+                        if (this.isGameOver) {
+                            return;
+                        }
+                        this.isGameOver = true;
+
+                        this.physics.pause();
+                        this.pointerActive = false;
+                        this.stopSaucerSound();
+                        this.playSfx('sfx_game_over', 0.9);
+                        this.player.setTint(0xff0000);
+
+                        const rank = HIGH_SCORES.submit(this.score, this.level);
+
+                        const gameOverText = this.add.text(this.viewW / 2, this.viewH / 2 - 40, 'GAME OVER', { fontSize: '48px', fill: '#ff0000', fontStyle: 'bold' });
+                        gameOverText.setOrigin(0.5);
+                        gameOverText.setDepth(100);
+
+                        //  Making the board is the good news, so it gets the loud
+                        //  line; otherwise the run is measured against the best.
+                        let verdict = 'score ' + this.score + '     best ' + HIGH_SCORES.best();
+                        let verdictColour = '#ffffff';
+                        if (rank === 1) {
+                            verdict = 'NEW HIGH SCORE     ' + this.score;
+                            verdictColour = '#ffdd55';
+                        } else if (rank > 1) {
+                            verdict = 'HIGH SCORE  #' + rank + '     ' + this.score;
+                            verdictColour = '#8cffcd';
+                        }
+                        const verdictText = this.add.text(this.viewW / 2, this.viewH / 2 + 20, verdict, { fontSize: '24px', fill: verdictColour, fontStyle: 'bold', stroke: '#000000', strokeThickness: 4 });
+                        verdictText.setOrigin(0.5);
+                        verdictText.setDepth(100);
+
+                        const promptText = this.add.text(this.viewW / 2, this.viewH / 2 + 70, 'tap or press a key for the menu', { fontSize: '22px', fill: '#fff', fontStyle: 'bold' });
+                        promptText.setOrigin(0.5);
+                        promptText.setDepth(100);
+
+                        const countText = this.add.text(this.viewW / 2, this.viewH / 2 + 106, '', { fontSize: '18px', fill: '#88ddff', fontStyle: 'bold' });
+                        countText.setOrigin(0.5);
+                        countText.setDepth(100);
+
+                        this.gameOverTexts = [gameOverText, verdictText, promptText, countText];
+
+                        //  The run is finished, so the start page takes over again:
+                        //  straight away if the player asks, otherwise once the
+                        //  scoreline has had a few seconds to sink in. Every route
+                        //  rechecks the flag, so the debug level jumper can cancel
+                        //  the whole thing simply by resuming play.
+                        const leave = () => {
+                            if (this.isGameOver) {
+                                this.quitToMenu();
+                            }
+                        };
+
+                        let waiting = 6;
+                        countText.setText('back to the menu in ' + waiting);
+                        this.time.addEvent({
+                            delay: 1000,
+                            repeat: waiting - 1,
+                            callback: () => {
+                                waiting -= 1;
+                                if (!this.isGameOver) {
+                                    return;
+                                }
+                                if (waiting > 0) {
+                                    countText.setText('back to the menu in ' + waiting);
+                                } else {
+                                    leave();
+                                }
+                            }
+                        });
+
+                        ['keydown-ENTER', 'keydown-SPACE', 'keydown-R'].forEach(event => {
+                            this.input.keyboard.once(event, leave);
+                        });
+                        //  The tap that killed the player must not count as the
+                        //  answer, so the touch handler arms itself a beat later.
+                        this.time.delayedCall(700, () => {
+                            if (this.isGameOver) {
+                                this.input.once('pointerdown', leave);
+                            }
+                        });
+                    };
+
+                    this.pickArmourSlots = function (rows, cols) {
+                        //  Armour arrives a few invaders at a time instead of whole
+                        //  lines: either the two flanks of a row or its middle, filling
+                        //  the front row first and creeping backwards from there.
+                        const slots = {};
+                        let remaining = Math.min(this.armourCount, rows * cols);
+                        if (remaining <= 0) {
+                            return slots;
+                        }
+
+                        const middle = (cols - 1) / 2;
+                        const order = [];
+                        for (let col = 0; col < cols; col++) {
+                            order.push(col);
+                        }
+                        order.sort((a, b) => {
+                            const da = Math.abs(a - middle);
+                            const db = Math.abs(b - middle);
+                            return this.armourPattern === 'centre' ? da - db : db - da;
+                        });
+
+                        for (let row = 0; row < rows && remaining > 0; row++) {
+                            for (let i = 0; i < order.length && remaining > 0; i++) {
+                                slots[row + ',' + order[i]] = true;
+                                remaining -= 1;
+                            }
+                        }
+                        return slots;
+                    };
+
+                    this.spawnInvaders = function () {
+                        const invaderSize = 40;
+                        const startX = this.gridLeft;
+                        const startY = this.gridTop;
+                        const rows = this.gridRows;
+                        const cols = this.gridCols;
+                        const rowTextures = ['invader_a', 'invader_b', 'invader_b', 'invader_c', 'invader_c'];
+                        const armourSlots = this.pickArmourSlots(rows, cols);
+
+                        for (let row = 0; row < rows; row++) {
+                            for (let col = 0; col < cols; col++) {
+                                const x = startX + col * this.gridStep;
+                                const y = startY + row * this.gridStep;
+                                const key = rowTextures[row];
+                                const invader = this.add.sprite(x, y, key);
+                                invader.setDisplaySize(invaderSize, invaderSize);
+                                invader.homeY = y;
+                                invader.row = row;
+                                invader.col = col;
+                                invader.hp = armourSlots[row + ',' + col] ? 2 : 1;
+                                invader.maxHp = invader.hp;
+                                invader.play(key + '_fly');
+                                this.paintInvader(invader);
+                                //  The wave materialises row by row instead of popping in.
+                                invader.setAlpha(0);
+                                this.tweens.add({
+                                    targets: invader,
+                                    alpha: 1,
+                                    duration: 260,
+                                    delay: (row * cols + col) * 8
+                                });
+                                this.invaders.add(invader);
+                                this.physics.add.existing(invader);
+                                invader.body.setAllowGravity(false);
+                                invader.body.setImmovable(true);
+                            }
+                        }
+                    };
+
+                    this.startLevel = function (level) {
+                        //  Jumping straight to a level cancels any transition in flight.
+                        if (this.levelTimer) {
+                            this.levelTimer.remove(false);
+                            this.levelTimer = null;
+                        }
+                        this.isTransitioning = false;
+
+                        this.level = level;
+                        this.levelText.setText('Level: ' + level);
+
+                        //  Difficulty ramps gently: roughly a 20% step per level rather
+                        //  than a doubling, so early levels stay comfortable.
+                        this.invaderSpeed = (30 + (level - 1) * 7) * this.speedX;
+                        this.invaderDropDistance = (16 + Math.floor((level - 1) / 2) * 2) * this.dropScale;
+                        this.invaderBulletSpeed = (200 + (level - 1) * 15) * this.speedY;
+                        this.invaderFireMin = Math.max(280, 850 - (level - 1) * 55);
+                        this.invaderFireMax = Math.max(700, 1900 - (level - 1) * 120);
+                        this.invaderDirection = 1;
+                        this.nextInvaderFire = this.time.now + 800;
+
+                        //  Cover thins out every third level, divers arrive at level 3.
+                        this.shieldCount = Math.max(1, 4 - Math.floor((level - 1) / 3));
+                        this.shieldBlockHp = level >= 7 ? 1 : 2;
+                        //  Armour starts at level 2 and only creeps up by two invaders
+                        //  per level, alternating between the flanks and the middle.
+                        this.armourCount = Math.max(0, Math.min(50, (level - 1) * 2));
+                        this.armourPattern = level % 2 === 0 ? 'sides' : 'centre';
+                        this.maxDivers = level < 3 ? 0 : Math.min(3, 1 + Math.floor((level - 3) / 3));
+                        this.diveSpeed = (120 + (level - 1) * 12) * this.speedY;
+                        this.diveInterval = Math.max(2200, 7000 - (level - 1) * 400);
+                        this.nextDiveAt = this.time.now + this.diveInterval;
+
+                        this.bullets.clear(true, true);
+                        this.invaderBullets.clear(true, true);
+                        this.invaders.clear(true, true);
+                        this.bonusShips.clear(true, true);
+                        this.powerUps.clear(true, true);
+                        this.stopSaucerSound();
+                        this.nextBonusAt = this.time.now + Phaser.Math.Between(5000, 9000);
+                        this.marchStep = 0;
+                        this.nextMarchBeat = this.time.now + 900;
+                        this.spawnInvaders();
+                        this.spawnShields();
+                        this.playSfx('sfx_level_start', 0.7);
+
+                        const banner = this.add.text(this.viewW / 2, this.viewH * 0.43, 'LEVEL ' + level, {
+                            fontSize: '44px',
+                            fill: '#00ff00',
+                            fontStyle: 'bold',
+                            stroke: '#000000',
+                            strokeThickness: 6
+                        });
+                        banner.setOrigin(0.5);
+                        banner.setDepth(100);
+                        banner.setScale(0.3);
+                        banner.setAlpha(0);
+
+                        if (this.levelBanner) {
+                            this.tweens.killTweensOf(this.levelBanner);
+                            this.levelBanner.destroy();
+                        }
+                        this.levelBanner = banner;
+
+                        //  Punch in, hold for a beat, then zoom out of the way.
+                        this.tweens.add({
+                            targets: banner,
+                            scale: 1,
+                            alpha: 1,
+                            ease: 'Back.easeOut',
+                            duration: 380
+                        });
+                        this.tweens.add({
+                            targets: banner,
+                            alpha: 0,
+                            scale: 1.6,
+                            delay: 900,
+                            duration: 420,
+                            onComplete: () => {
+                                if (this.levelBanner === banner) {
+                                    this.levelBanner = null;
+                                }
+                                banner.destroy();
+                            }
+                        });
+
+                        if (this.debugText) {
+                            this.debugText.setText(
+                                'DEBUG  bunkers ' + this.shieldCount +
+                                ' (' + this.shieldBlockHp + 'hp)' +
+                                '   armour ' + this.armourCount + ' ' + this.armourPattern +
+                                '   divers ' + this.maxDivers +
+                                ' @ ' + this.diveSpeed + 'px/s' +
+                                '   fire ' + this.invaderFireMin + '-' + this.invaderFireMax + 'ms' +
+                                '   march ' + Math.round(this.invaderSpeed)
+                            );
+                        }
+
+                        if (this.levelLabel) {
+                            this.levelLabel.textContent = 'Level ' + level;
+                        }
+                    };
+
+                    this.beginLevelTransition = function () {
+                        //  Victory lap: the sky is swept clean, the clear banner plays,
+                        //  and only then does the next wave arrive.
+                        if (this.isTransitioning || this.isGameOver) {
+                            return;
+                        }
+                        this.isTransitioning = true;
+
+                        this.invaderBullets.clear(true, true);
+                        this.stopSaucerSound();
+                        this.playSfx('sfx_wave_clear', 0.8);
+
+                        const wash = this.add.rectangle(
+                            this.viewW / 2, this.viewH / 2, this.viewW, this.viewH, 0x00ff88, 0.16
+                        );
+                        wash.setDepth(49);
+                        this.tweens.add({
+                            targets: wash,
+                            alpha: 0,
+                            duration: 700,
+                            onComplete: () => wash.destroy()
+                        });
+
+                        const clearedY = this.viewH * 0.42;
+                        const cleared = this.add.text(this.viewW / 2, clearedY, 'WAVE ' + this.level + ' CLEARED', {
+                            fontSize: '40px',
+                            fill: '#8cffcd',
+                            fontStyle: 'bold',
+                            stroke: '#000000',
+                            strokeThickness: 6
+                        });
+                        cleared.setOrigin(0.5);
+                        cleared.setDepth(100);
+                        cleared.setScale(0.4);
+                        cleared.setAlpha(0);
+                        this.tweens.add({
+                            targets: cleared,
+                            scale: 1,
+                            alpha: 1,
+                            ease: 'Back.easeOut',
+                            duration: 420
+                        });
+                        this.tweens.add({
+                            targets: cleared,
+                            alpha: 0,
+                            y: clearedY - 40,
+                            delay: 900,
+                            duration: 400,
+                            onComplete: () => cleared.destroy()
+                        });
+
+                        this.levelTimer = this.time.delayedCall(1500, () => {
+                            this.levelTimer = null;
+                            this.isTransitioning = false;
+                            if (!this.isGameOver) {
+                                this.nextLevel();
+                            }
+                        });
+                    };
+
+                    this.nextLevel = function () {
+                        this.startLevel(this.level + 1);
+                    };
+
+                    this.player = null;
+                    this.invaders = null;
+                    this.bullets = null;
+                    this.invaderBullets = null;
+                    this.shields = null;
+                    this.bonusShips = null;
+                    this.powerUps = null;
+                    this.wingmen = null;
+                    this.powerText = null;
+                    this.rapidUntil = 0;
+                    this.multiUntil = 0;
+                    this.twinUntil = 0;
+                    this.shieldUntil = 0;
+                    this.forceField = null;
+                    this.POWER_TYPES = ['rapid', 'multi', 'laser', 'life', 'twin', 'push', 'nuke', 'shield', 'scramble'];
+                    //  Drop odds: the screen-clearing bomb has to stay rare.
+                    this.POWER_WEIGHTS = [6, 6, 4, 3, 3, 3, 1, 4, 4];
+                    //  Halo colours, matching the capsule artwork.
+                    this.POWER_TINTS = [0xffbe28, 0xff7828, 0xff3c3c, 0x3ce66e, 0x46c8ff,
+                                        0xaa78ff, 0xff46be, 0xc8d7eb, 0x3cdcbe];
+                    this.powerGlows = [];
+                    this.nextBonusAt = 0;
+                    this.marchStep = 0;
+                    this.nextMarchBeat = 0;
+                    this.shieldCount = 4;
+                    this.shieldBlockHp = 2;
+                    this.armourCount = 0;
+                    this.armourPattern = 'sides';
+                    this.ARMOUR_TINT = 0xff9a3c;
+                    this.maxDivers = 0;
+                    this.diveSpeed = 130;
+                    this.diveInterval = 6000;
+                    this.nextDiveAt = 0;
+                    this.debugText = null;
+                    this.gameOverTexts = [];
+                    this.cursors = null;
+                    this.spaceKey = null;
+                    this.score = 0;
+                    this.scoreText = null;
+                    this.lives = 3;
+                    this.livesText = null;
+                    this.playerHitUntil = 0;
+                    this.isGameOver = false;
+                    this.leavingToMenu = false;
+                    this.level = 1;
+                    this.levelText = null;
+                    this.levelBanner = null;
+                    this.isTransitioning = false;
+                    this.levelTimer = null;
+                    this.invaderSpeed = 30;
+                    this.invaderDirection = 1;
+                    this.invaderDropDistance = 18;
+                    this.invaderBulletSpeed = 200;
+                    this.invaderFireMin = 800;
+                    this.invaderFireMax = 1800;
+                    this.nextInvaderFire = 0;
+                    this.lastFired = 0;
+
+                    //  The sky is 4:3 artwork, so it is scaled to cover the board and
+                    //  cropped rather than stretched: stars stay square in portrait.
+                    const sky = this.add.image(this.viewW / 2, this.viewH / 2, 'background');
+                    sky.setScale(Math.max(this.viewW / 1600, this.viewH / 1200));
+                    sky.setDepth(-10);
+
+                    //  Animations live on the game, not the scene, so they survive a
+                    //  restart and only ever need building once.
+                    ['invader_a', 'invader_b', 'invader_c'].forEach(key => {
+                        if (this.anims.exists(key + '_fly')) {
+                            return;
+                        }
+                        this.anims.create({
+                            key: key + '_fly',
+                            frames: this.anims.generateFrameNumbers(key, { start: 0, end: 1 }),
+                            frameRate: 2,
+                            repeat: -1
+                        });
+                    });
+
+                    if (!this.anims.exists('explode')) {
+                        this.anims.create({
+                            key: 'explode',
+                            frames: this.anims.generateFrameNumbers('explosion', { start: 0, end: 4 }),
+                            frameRate: 24
+                        });
+                    }
+
+                    this.player = this.add.sprite(this.viewW / 2, this.playerY, 'player');
+                    this.player.setDisplaySize(60, 20);
+                    this.player.setTint(0x00ff00);
+                    this.player.setVisible(true);
+                    this.player.setAlpha(1);
+                    this.player.setDepth(10);
+                    this.physics.add.existing(this.player);
+                    this.player.body.setAllowGravity(false);
+                    this.player.body.setImmovable(true);
+
+                    this.invaders = this.physics.add.group({ runChildUpdate: true });
+
+                    this.bullets = this.physics.add.group({ runChildUpdate: true });
+                    this.invaderBullets = this.physics.add.group({ runChildUpdate: true });
+                    this.shields = this.physics.add.group();
+                    this.bonusShips = this.physics.add.group();
+                    this.powerUps = this.physics.add.group();
+                    this.wingmen = this.physics.add.group();
+
+                    this.cursors = this.input.keyboard.createCursorKeys();
+                    this.spaceKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
+
+                    //  ---- touch controls ------------------------------------------
+                    //  Drag anywhere to slide the cannon and hold to keep firing.  The
+                    //  drag is relative to where the finger went down, so it never has
+                    //  to sit on top of the ship.
+                    this.pointerActive = false;
+                    this.pointerX = 0;
+                    this.dragOffset = 0;
+
+                    this.input.on('pointerdown', pointer => {
+                        if (this.isGameOver) {
+                            return;
+                        }
+                        this.pointerActive = true;
+                        this.pointerX = pointer.x;
+                        this.dragOffset = Phaser.Math.Clamp(this.player.x - pointer.x, -160, 160);
+                    });
+                    this.input.on('pointermove', pointer => {
+                        if (pointer.isDown) {
+                            this.pointerX = pointer.x;
+                        }
+                    });
+                    this.input.on('pointerup', () => {
+                        this.pointerActive = false;
+                    });
+
+                    const hudStyle = {
+                        fontSize: '24px',
+                        fill: '#fff',
+                        fontStyle: 'bold',
+                        stroke: '#000000',
+                        strokeThickness: 4
+                    };
+
+                    this.scoreText = this.add.text(16, 16, 'Score: 0', hudStyle);
+                    this.livesText = this.add.text(16, 50, 'Lives: 3', hudStyle);
+                    this.levelText = this.add.text(this.viewW - 16, 16, 'Level: 1', hudStyle);
+                    this.levelText.setOrigin(1, 0);
+
+                    this.scoreText.setDepth(100);
+                    this.livesText.setDepth(100);
+                    this.levelText.setDepth(100);
+
+                    this.powerText = this.add.text(this.viewW - 16, 50, '', {
+                        fontSize: '16px',
+                        fill: '#ffdd55',
+                        fontStyle: 'bold',
+                        stroke: '#000000',
+                        strokeThickness: 4
+                    });
+                    this.powerText.setOrigin(1, 0);
+                    this.powerText.setDepth(100);
+
+                    //  ---- debug level stepper -------------------------------------
+                    //  The +/- controls are plain DOM buttons sitting under the board:
+                    //  they stay clickable no matter what the canvas input is doing, and
+                    //  tabindex="-1" plus blur() keeps SPACE firing the cannon, not a button.
+                    //  None of it exists unless the page was opened with ?debug=true.
+                    this.levelLabel = DEBUG ? document.getElementById('level-label') : null;
+                    const soundButton = DEBUG ? document.getElementById('toggle-sound') : null;
+
+                    if (DEBUG) {
+                        const wireButton = (id, delta) => {
+                            //  Assigning onclick (rather than addEventListener) keeps a single
+                            //  handler when create() runs again after a restart.
+                            document.getElementById(id).onclick = event => {
+                                event.currentTarget.blur();
+                                this.changeLevel(delta);
+                            };
+                        };
+                        wireButton('level-up', 1);
+                        wireButton('level-down', -1);
+
+                        document.getElementById('drop-gifts').onclick = event => {
+                            event.currentTarget.blur();
+                            this.dropAllGifts();
+                        };
+                    }
+
+                    this.toggleSound = function () {
+                        this.sound.mute = !this.sound.mute;
+                        SETTINGS.set('muted', this.sound.mute);
+                        if (soundButton) {
+                            soundButton.textContent = this.sound.mute ? 'sound off' : 'sound on';
+                        }
+                    };
+                    if (soundButton) {
+                        soundButton.textContent = this.sound.mute ? 'sound off' : 'sound on';
+                        soundButton.onclick = event => {
+                            event.currentTarget.blur();
+                            this.toggleSound();
+                        };
+                    }
+
+                    this.input.keyboard.on('keydown', event => {
+                        if (event.key === 'm' || event.key === 'M') {
+                            this.toggleSound();
+                        } else if (!DEBUG) {
+                            return;
+                        } else if (event.key === '+' || event.key === '=') {
+                            this.changeLevel(1);
+                        } else if (event.key === '-' || event.key === '_') {
+                            this.changeLevel(-1);
+                        } else if (event.key === 'g' || event.key === 'G') {
+                            this.dropAllGifts();
+                        }
+                    });
+
+                    //  A game in progress can always be abandoned back to the menu.
+                    this.input.keyboard.on('keydown-ESC', () => this.quitToMenu());
+
+                    if (DEBUG) {
+                        this.debugText = this.add.text(16, this.viewH - 22, '', {
+                            fontSize: '13px',
+                            fill: '#88ddff',
+                            stroke: '#000000',
+                            strokeThickness: 3,
+                            wordWrap: { width: this.viewW - 32 }
+                        });
+                        this.debugText.setOrigin(0, 1);
+                        this.debugText.setDepth(100);
+                    }
+                    //  --------------------------------------------------------------
+
+                    this.startLevel(1);
+
+                    this.physics.add.overlap(this.bullets, this.invaders, this.hitInvader, null, this);
+                    this.physics.add.overlap(this.invaderBullets, this.player, this.hitPlayer, null, this);
+                    this.physics.add.overlap(this.bullets, this.shields, this.hitShield, null, this);
+                    this.physics.add.overlap(this.invaderBullets, this.shields, this.hitShield, null, this);
+                    this.physics.add.overlap(this.invaders, this.shields, this.crushShield, null, this);
+                    this.physics.add.overlap(this.invaders, this.player, this.hitPlayerByInvader, null, this);
+                    this.physics.add.overlap(this.bullets, this.bonusShips, this.hitBonusShip, null, this);
+                    this.physics.add.overlap(this.powerUps, this.player, this.collectPowerUp, null, this);
+                    this.physics.add.overlap(this.invaderBullets, this.wingmen, this.hitWingman, null, this);
+                },
+                update: function (time, delta) {
+                    if (this.isGameOver || !this.player || !this.player.active) {
+                        return;
+                    }
+
+                    this.player.setVisible(true);
+                    this.player.setAlpha(1);
+                    this.player.setDepth(10);
+                    if (this.time.now < this.playerHitUntil) {
+                        this.player.setTint(0xff0000);
+                    } else {
+                        this.player.setTint(0x00ff00);
+                    }
+
+                    //  A pointer released outside the canvas never fires 'pointerup',
+                    //  so the held state is re-checked every frame.
+                    if (this.pointerActive && !this.input.activePointer.isDown) {
+                        this.pointerActive = false;
+                    }
+
+                    const minX = 30;
+                    const maxX = this.viewW - 30;
+                    const moveStep = 4 * this.speedX;
+
+                    if (this.pointerActive) {
+                        this.player.x = Phaser.Math.Clamp(this.pointerX + this.dragOffset, minX, maxX);
+                    } else if (this.cursors.left.isDown) {
+                        this.player.x -= moveStep;
+                        if (this.player.x < minX) this.player.x = minX;
+                    } else if (this.cursors.right.isDown) {
+                        this.player.x += moveStep;
+                        if (this.player.x > maxX) this.player.x = maxX;
+                    }
+
+                    //  Wingman flies in formation with the player until its timer runs out.
+                    if (this.wingmen.countActive() > 0 && time > this.twinUntil) {
+                        this.wingmen.clear(true, true);
+                    }
+                    this.wingmen.children.each(wingman => {
+                        if (!wingman || !wingman.active) return;
+                        wingman.x = Phaser.Math.Clamp(this.player.x + wingman.offsetX, minX, maxX);
+                        wingman.y = this.player.y;
+                        if (wingman.body) {
+                            wingman.body.updateFromGameObject();
+                        }
+                    });
+
+                    //  Force field rides with the ship and vaporises shots at its edge.
+                    if (this.forceField) {
+                        this.forceField.x = this.player.x;
+                        this.forceField.y = this.player.y;
+
+                        if (time > this.shieldUntil) {
+                            this.dropForceField();
+                        } else {
+                            this.invaderBullets.getChildren().slice().forEach(bullet => {
+                                if (!bullet.active) return;
+                                const distance = Phaser.Math.Distance.Between(
+                                    bullet.x, bullet.y, this.player.x, this.player.y
+                                );
+                                if (distance <= 44) {
+                                    this.shieldSpark(bullet.x, bullet.y);
+                                    bullet.destroy();
+                                }
+                            });
+                        }
+                    }
+
+                    const fireDelay = (time < this.rapidUntil) ? 110 : 250;
+                    if ((this.spaceKey.isDown || this.pointerActive) && time > this.lastFired) {
+                        this.fireVolley();
+                        this.lastFired = time + fireDelay;
+                    }
+
+                    this.bullets.children.each(bullet => {
+                        if (bullet.y < 0 || bullet.x < -20 || bullet.x > this.viewW + 20) {
+                            bullet.destroy();
+                        }
+                    });
+
+                    this.powerUps.children.each(capsule => {
+                        if (capsule && capsule.active && capsule.y > this.viewH + 20) {
+                            capsule.destroy();
+                        }
+                    });
+
+                    //  Halos ride along with their capsule and die with it.
+                    this.powerGlows = this.powerGlows.filter(glow => {
+                        if (!glow.owner || !glow.owner.active) {
+                            this.tweens.killTweensOf(glow);
+                            glow.destroy();
+                            return false;
+                        }
+                        glow.x = glow.owner.x;
+                        glow.y = glow.owner.y;
+                        return true;
+                    });
+
+                    const powers = [];
+                    if (time < this.rapidUntil) powers.push('RAPID ' + Math.ceil((this.rapidUntil - time) / 1000));
+                    if (time < this.multiUntil) powers.push('TRIPLE ' + Math.ceil((this.multiUntil - time) / 1000));
+                    if (this.wingmen.countActive() > 0) powers.push('TWIN ' + Math.ceil((this.twinUntil - time) / 1000));
+                    if (time < this.shieldUntil) powers.push('SHIELD ' + Math.ceil((this.shieldUntil - time) / 1000));
+                    this.powerText.setText(powers.join('   '));
+
+                    this.invaderBullets.children.each(bullet => {
+                        if (bullet.y > this.viewH) {
+                            bullet.destroy();
+                        }
+                    });
+
+                    this.bonusShips.children.each(saucer => {
+                        if (saucer && saucer.active && (saucer.x < -70 || saucer.x > this.viewW + 70)) {
+                            saucer.destroy();
+                        }
+                    });
+
+                    if (this.saucerSound && this.bonusShips.countActive() === 0) {
+                        this.stopSaucerSound();
+                    }
+
+                    if (this.bonusShips.countActive() === 0 && time > this.nextBonusAt) {
+                        this.spawnBonusShip();
+                        this.nextBonusAt = time + Phaser.Math.Between(9000, 15000);
+                    }
+
+                    const invaderStep = this.invaderDirection * (this.invaderSpeed * delta / 1000);
+                    let hitEdge = false;
+
+                    this.invaders.children.each(invader => {
+                        if (!invader || !invader.active) return;
+
+                        if (invader.isDiving) {
+                            //  Divers steer for the player until they commit to the run.
+                            if (invader.y < this.playerY - 90) {
+                                this.physics.moveTo(invader, this.player.x, this.player.y, this.diveSpeed);
+                            }
+                            if (invader.y > this.viewH + 40) {
+                                invader.destroy();
+                            }
+                            return;
+                        }
+
+                        invader.x += invaderStep;
+                        if (invader.body) {
+                            invader.body.updateFromGameObject();
+                        }
+
+                        const leftEdge = invader.x - invader.displayWidth / 2;
+                        const rightEdge = invader.x + invader.displayWidth / 2;
+                        if (this.invaderDirection === 1 && rightEdge > this.marchRight) {
+                            hitEdge = true;
+                        } else if (this.invaderDirection === -1 && leftEdge < this.marchLeft) {
+                            hitEdge = true;
+                        }
+
+                        if (invader.y + invader.displayHeight / 2 >= this.player.y - 10) {
+                            this.gameOver();
+                        }
+                    });
+
+                    if (hitEdge) {
+                        this.invaderDirection *= -1;
+                        this.invaders.children.each(invader => {
+                            if (invader && invader.active && !invader.isDiving) {
+                                invader.y += this.invaderDropDistance;
+                                if (invader.body) {
+                                    invader.body.updateFromGameObject();
+                                }
+                            }
+                        });
+                        this.invaderSpeed += this.speedX;
+                    }
+
+                    if (this.maxDivers > 0 && time > this.nextDiveAt) {
+                        const diving = this.invaders.getChildren().filter(
+                            invader => invader.active && invader.isDiving
+                        ).length;
+                        if (diving < this.maxDivers) {
+                            this.launchDiver();
+                            this.nextDiveAt = time + this.diveInterval;
+                        }
+                    }
+
+                    if (time > this.nextInvaderFire) {
+                        this.fireInvaderBullet();
+                        this.nextInvaderFire = time + Phaser.Math.Between(this.invaderFireMin, this.invaderFireMax);
+                    }
+
+                    //  The marching heartbeat: four notes on a loop that tightens up
+                    //  as the swarm is whittled down.
+                    const marching = this.invaders.countActive();
+                    if (marching > 0 && !this.isTransitioning && time > this.nextMarchBeat) {
+                        this.playSfx('sfx_march_' + this.marchStep, 0.4);
+                        this.marchStep = (this.marchStep + 1) % 4;
+                        const fraction = marching / (this.gridRows * this.gridCols);
+                        this.nextMarchBeat = time + Phaser.Math.Linear(180, 620, fraction);
+                    }
+
+                    if (!this.isTransitioning && this.invaders.countActive() === 0) {
+                        this.beginLevelTransition();
+                    }
+                }
+            }]
+        };
+
+        const game = new Phaser.Game(config);
+    </script>
+</body>
+</html>
