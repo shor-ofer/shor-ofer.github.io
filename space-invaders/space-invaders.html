@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
     <title>Space Invaders - Phaser.js</title>
-    <script src="https://cdn.jsdelivr.net/npm/phaser@3.55.2/dist/phaser.js"></script>
+    <script src="lib/phaser-3.55.2.min.js"></script>
     <style>
         html, body {
             margin: 0;
@@ -227,6 +227,7 @@
         const ART = {
             images: {
                 background: 'background.png',
+                stars_near: 'stars_near.png',
                 player: 'player.png',
                 bullet_player: 'bullet_player.png',
                 bullet_invader: 'bullet_invader.png',
@@ -240,6 +241,7 @@
                 invader_a: { file: 'invader_a_sheet.png', size: 80 },
                 invader_b: { file: 'invader_b_sheet.png', size: 80 },
                 invader_c: { file: 'invader_c_sheet.png', size: 80 },
+                invader_d: { file: 'invader_d_sheet.png', size: 80 },
                 explosion: { file: 'explosion_sheet.png', size: 80 },
                 powerup: { file: 'powerup_sheet.png', size: 48 }
             },
@@ -335,6 +337,109 @@
             }
         };
 
+        //  ---- the sky -------------------------------------------------------
+        //  The starfield tiles seamlessly, so it can drift for ever. Two copies
+        //  of it scroll at different speeds and sizes, which reads as depth, and
+        //  every so often a meteor crosses the board. All of it creeps along at
+        //  a few pixels a second: enough to feel alive, slow enough that it
+        //  never pulls the eye away from the invaders.
+        const SKY = {
+            speed: 0.012,
+            nearSpeed: 0.034,
+            nearAlpha: 0.75,
+            meteorMin: 5000,
+            meteorMax: 13000,
+
+            add: function (scene, width, height) {
+                //  The sky is 4:3 artwork, so it is scaled to cover the board and
+                //  cropped rather than stretched: stars stay square in portrait.
+                const scale = Math.max(width / 1600, height / 1200);
+
+                const far = scene.add.tileSprite(0, 0, width, height, 'background');
+                far.setOrigin(0);
+                far.setTileScale(scale);
+                far.setDepth(-10);
+
+                //  The near layer is a sparse sheet of bigger stars, scrolled
+                //  faster than the sky behind it and added rather than painted
+                //  over so it glows instead of flattening the art.
+                const near = scene.add.tileSprite(0, 0, width, height, 'stars_near');
+                near.setOrigin(0);
+                near.setTileScale(scale);
+                near.setAlpha(SKY.nearAlpha);
+                near.setBlendMode(Phaser.BlendModes.ADD);
+                near.setDepth(-9);
+
+                scene.sky = far;
+                scene.skyNear = near;
+                scene.skyMeteors = [];
+                scene.nextMeteor = scene.time.now +
+                    Phaser.Math.Between(SKY.meteorMin, SKY.meteorMax);
+                return far;
+            },
+
+            meteor: function (scene) {
+                const W = scene.scale.width;
+                const H = scene.scale.height;
+                //  Meteors always fall the same way as the stars, just far faster,
+                //  and they stay in the upper half so they never sit behind the
+                //  invaders at the moment they are brightest.
+                const speed = Phaser.Math.Between(340, 520);
+                const rightwards = Phaser.Math.Between(0, 1) === 1;
+                const vx = speed * (rightwards ? 0.85 : -0.85);
+                const vy = speed * 0.62;
+                const streak = scene.add.rectangle(
+                    rightwards ? Phaser.Math.Between(-80, W * 0.4)
+                               : Phaser.Math.Between(W * 0.6, W + 80),
+                    Phaser.Math.Between(-30, H * 0.35),
+                    2,
+                    Phaser.Math.Between(34, 70),
+                    0xffffff
+                );
+                streak.setOrigin(0.5, 1);
+                streak.setAngle(Phaser.Math.RadToDeg(Math.atan2(-vx, vy)));
+                streak.setAlpha(0);
+                streak.setBlendMode(Phaser.BlendModes.ADD);
+                streak.setDepth(-9);
+                streak.vx = vx;
+                streak.vy = vy;
+                streak.life = 0;
+                streak.span = Phaser.Math.Between(900, 1400);
+                scene.skyMeteors.push(streak);
+            },
+
+            drift: function (scene, delta) {
+                if (!scene.sky) {
+                    return;
+                }
+                scene.sky.tilePositionY -= delta * SKY.speed;
+                scene.skyNear.tilePositionY -= delta * SKY.nearSpeed;
+
+                if (scene.time.now >= scene.nextMeteor) {
+                    scene.nextMeteor = scene.time.now +
+                        Phaser.Math.Between(SKY.meteorMin, SKY.meteorMax);
+                    SKY.meteor(scene);
+                }
+
+                //  Meteors are moved by hand rather than tweened: the menu clears
+                //  its tweens whenever a page changes, which would strand them.
+                const step = delta / 1000;
+                scene.skyMeteors = scene.skyMeteors.filter(streak => {
+                    streak.life += delta;
+                    const t = streak.life / streak.span;
+                    if (t >= 1) {
+                        streak.destroy();
+                        return false;
+                    }
+                    streak.x += streak.vx * step;
+                    streak.y += streak.vy * step;
+                    //  Flare up quickly, then burn out over the rest of the run.
+                    streak.setAlpha(t < 0.2 ? t * 4.25 : (1 - t) * 1.06);
+                    return true;
+                });
+            }
+        };
+
         //  ---- the menu ------------------------------------------------------
         //  Start page, scoreboard, options and credits, all drawn on the same
         //  800 x 600 board as the game so every device sees the same layout.
@@ -355,9 +460,7 @@
                 SETTINGS.applyTo(this);
                 SFX.load(this);
 
-                const sky = this.add.image(W / 2, H / 2, 'background');
-                sky.setScale(Math.max(W / 1600, H / 1200));
-                sky.setDepth(-10);
+                SKY.add(this, W, H);
 
                 this.page = this.add.container(0, 0);
                 this.pageName = 'main';
@@ -570,6 +673,10 @@
                 });
 
                 this.show('main');
+            },
+
+            update: function (time, delta) {
+                SKY.drift(this, delta);
             }
         };
 
@@ -702,9 +809,12 @@
 
                         const randomInvader = Phaser.Utils.Array.GetRandom(aliveInvaders);
                         const bullet = this.add.sprite(randomInvader.x, randomInvader.y + 20, 'bullet_invader');
-                        bullet.setDisplaySize(4, 12);
+                        bullet.setDisplaySize(10, 24);
                         this.physics.add.existing(bullet);
                         this.invaderBullets.add(bullet);
+                        //  The bolt is drawn big so it is easy to read, but it still
+                        //  hits with the old, slimmer hitbox.
+                        bullet.body.setSize(4 / bullet.scaleX, 12 / bullet.scaleY);
                         bullet.body.setVelocityY(this.invaderBulletSpeed);
                         bullet.body.setAllowGravity(false);
                     };
@@ -747,7 +857,7 @@
                             return;
                         }
 
-                        const points = 10 * (invader.maxHp || 1);
+                        const points = invader.points || 10 * (invader.maxHp || 1);
                         invader.destroy();
                         this.score += points;
                         this.scoreText.setText('Score: ' + this.score);
@@ -857,6 +967,32 @@
                         diver.setDepth(7);
                         this.playSfx('sfx_dive', 0.45);
                         this.physics.moveTo(diver, this.player.x, this.player.y, this.diveSpeed);
+                    };
+
+                    this.launchRaid = function () {
+                        //  The raiders hold formation with the rest of the swarm and
+                        //  then drop as one, a beat apart so they arrive as a stream
+                        //  rather than a wall.
+                        const squadron = this.invaders.getChildren().filter(
+                            invader => invader.isRaider && invader.active &&
+                                       !invader.isDiving && !invader.isDoomed
+                        );
+                        if (squadron.length === 0) {
+                            return;
+                        }
+
+                        squadron.sort((a, b) => a.x - b.x);
+                        squadron.forEach((raider, index) => {
+                            this.time.delayedCall(index * 130, () => {
+                                if (this.isGameOver || !raider.active || raider.isDiving) {
+                                    return;
+                                }
+                                raider.isDiving = true;
+                                raider.setDepth(7);
+                                this.playSfx('sfx_dive', 0.5);
+                                this.physics.moveTo(raider, this.player.x, this.player.y, raider.diveSpeed);
+                            });
+                        });
                     };
 
                     this.hitPlayerByInvader = function (objA, objB) {
@@ -1163,9 +1299,13 @@
                     this.pushInvadersBack = function () {
                         //  Shoves the whole swarm back to the row it started the level on
                         //  and aborts any dive already in progress.
+                        let raidersLeft = 0;
                         this.invaders.getChildren().forEach(invader => {
                             if (!invader.active) return;
 
+                            if (invader.isRaider) {
+                                raidersLeft += 1;
+                            }
                             if (invader.isDiving) {
                                 invader.isDiving = false;
                                 invader.setDepth(0);
@@ -1190,6 +1330,11 @@
                                 }
                             });
                         });
+
+                        //  The survivors of the squadron regroup and try again.
+                        if (raidersLeft > 0) {
+                            this.raidAt = this.time.now + 3000;
+                        }
                     };
 
                     this.scrambleInvaders = function () {
@@ -1197,7 +1342,8 @@
                         //  block at the front of the formation, then shuffled so every
                         //  invader lands in a different slot than it started in.
                         const movers = this.invaders.getChildren().filter(
-                            invader => invader.active && !invader.isDiving && !invader.isDoomed
+                            invader => invader.active && !invader.isDiving &&
+                                       !invader.isDoomed && !invader.isRaider
                         );
                         if (movers.length < 2) {
                             return;
@@ -1330,7 +1476,7 @@
                                 boom.play('explode');
                                 boom.once('animationcomplete', () => boom.destroy());
 
-                                const points = 10 * (invader.maxHp || 1);
+                                const points = invader.points || 10 * (invader.maxHp || 1);
                                 invader.destroy();
                                 this.score += points;
                                 this.scoreText.setText('Score: ' + this.score);
@@ -1365,7 +1511,7 @@
                             boom.setDepth(5);
                             boom.play('explode');
                             boom.once('animationcomplete', () => boom.destroy());
-                            points += 10 * (invader.maxHp || 1);
+                            points += invader.points || 10 * (invader.maxHp || 1);
                             invader.destroy();
                             killed += 1;
                         });
@@ -1398,6 +1544,10 @@
                         this.wingmen.add(wingman);
                         wingman.body.setAllowGravity(false);
                         wingman.body.setImmovable(true);
+                        //  The wingman is flown by hand every frame, so arcade physics
+                        //  must not integrate it as well: left to itself it writes a
+                        //  stale position back over ours and the ship judders.
+                        wingman.body.moves = false;
                     };
 
                     this.hitWingman = function (objA, objB) {
@@ -1629,6 +1779,44 @@
                         }
                     };
 
+                    this.spawnRaiders = function () {
+                        //  A short squadron rides one row above the swarm, marching in
+                        //  formation with it until their timer runs out.
+                        const count = this.raiderCount;
+                        if (count <= 0) {
+                            return;
+                        }
+
+                        const y = this.gridTop - this.gridStep;
+                        const centre = this.gridLeft + (this.gridCols - 1) * this.gridStep / 2;
+                        const startX = centre - (count - 1) * this.gridStep / 2;
+
+                        for (let i = 0; i < count; i++) {
+                            const raider = this.add.sprite(startX + i * this.gridStep, y, 'invader_d');
+                            raider.setDisplaySize(40, 40);
+                            raider.homeY = y;
+                            raider.row = -1;
+                            raider.col = i;
+                            raider.hp = 1;
+                            raider.maxHp = 1;
+                            raider.isRaider = true;
+                            raider.points = 30;
+                            raider.diveSpeed = this.raidSpeed;
+                            raider.play('invader_d_fly');
+                            raider.setAlpha(0);
+                            this.tweens.add({
+                                targets: raider,
+                                alpha: 1,
+                                duration: 260,
+                                delay: 200 + i * 40
+                            });
+                            this.invaders.add(raider);
+                            this.physics.add.existing(raider);
+                            raider.body.setAllowGravity(false);
+                            raider.body.setImmovable(true);
+                        }
+                    };
+
                     this.startLevel = function (level) {
                         //  Jumping straight to a level cancels any transition in flight.
                         if (this.levelTimer) {
@@ -1662,6 +1850,14 @@
                         this.diveInterval = Math.max(2200, 7000 - (level - 1) * 400);
                         this.nextDiveAt = this.time.now + this.diveInterval;
 
+                        //  Raiders show up from level 2, a couple more every other
+                        //  level, and they wait a little less each time before they
+                        //  drop on the player.
+                        this.raiderCount = level < 2 ? 0 : Math.min(7, 2 + Math.floor((level - 1) / 2));
+                        this.raidSpeed = (170 + (level - 1) * 14) * this.speedY;
+                        this.raidDelay = Math.max(2600, 6500 - (level - 1) * 300);
+                        this.raidAt = this.raiderCount > 0 ? this.time.now + this.raidDelay : 0;
+
                         this.bullets.clear(true, true);
                         this.invaderBullets.clear(true, true);
                         this.invaders.clear(true, true);
@@ -1672,6 +1868,7 @@
                         this.marchStep = 0;
                         this.nextMarchBeat = this.time.now + 900;
                         this.spawnInvaders();
+                        this.spawnRaiders();
                         this.spawnShields();
                         this.playSfx('sfx_level_start', 0.7);
 
@@ -1722,6 +1919,8 @@
                                 '   armour ' + this.armourCount + ' ' + this.armourPattern +
                                 '   divers ' + this.maxDivers +
                                 ' @ ' + this.diveSpeed + 'px/s' +
+                                '   raiders ' + this.raiderCount +
+                                ' @ ' + Math.round(this.raidDelay / 100) / 10 + 's' +
                                 '   fire ' + this.invaderFireMin + '-' + this.invaderFireMax + 'ms' +
                                 '   march ' + Math.round(this.invaderSpeed)
                             );
@@ -1829,6 +2028,10 @@
                     this.diveSpeed = 130;
                     this.diveInterval = 6000;
                     this.nextDiveAt = 0;
+                    this.raiderCount = 0;
+                    this.raidSpeed = 180;
+                    this.raidDelay = 6000;
+                    this.raidAt = 0;
                     this.debugText = null;
                     this.gameOverTexts = [];
                     this.cursors = null;
@@ -1856,20 +2059,18 @@
 
                     //  The sky is 4:3 artwork, so it is scaled to cover the board and
                     //  cropped rather than stretched: stars stay square in portrait.
-                    const sky = this.add.image(this.viewW / 2, this.viewH / 2, 'background');
-                    sky.setScale(Math.max(this.viewW / 1600, this.viewH / 1200));
-                    sky.setDepth(-10);
+                    SKY.add(this, this.viewW, this.viewH);
 
                     //  Animations live on the game, not the scene, so they survive a
                     //  restart and only ever need building once.
-                    ['invader_a', 'invader_b', 'invader_c'].forEach(key => {
+                    ['invader_a', 'invader_b', 'invader_c', 'invader_d'].forEach(key => {
                         if (this.anims.exists(key + '_fly')) {
                             return;
                         }
                         this.anims.create({
                             key: key + '_fly',
                             frames: this.anims.generateFrameNumbers(key, { start: 0, end: 1 }),
-                            frameRate: 2,
+                            frameRate: key === 'invader_d' ? 6 : 2,
                             repeat: -1
                         });
                     });
@@ -2037,9 +2238,13 @@
                     this.physics.add.overlap(this.invaders, this.player, this.hitPlayerByInvader, null, this);
                     this.physics.add.overlap(this.bullets, this.bonusShips, this.hitBonusShip, null, this);
                     this.physics.add.overlap(this.powerUps, this.player, this.collectPowerUp, null, this);
+                    this.physics.add.overlap(this.powerUps, this.wingmen, this.collectPowerUp, null, this);
                     this.physics.add.overlap(this.invaderBullets, this.wingmen, this.hitWingman, null, this);
                 },
                 update: function (time, delta) {
+                    //  The sky keeps drifting even on the game over screen.
+                    SKY.drift(this, delta);
+
                     if (this.isGameOver || !this.player || !this.player.active) {
                         return;
                     }
@@ -2174,7 +2379,8 @@
                         if (invader.isDiving) {
                             //  Divers steer for the player until they commit to the run.
                             if (invader.y < this.playerY - 90) {
-                                this.physics.moveTo(invader, this.player.x, this.player.y, this.diveSpeed);
+                                this.physics.moveTo(invader, this.player.x, this.player.y,
+                                                    invader.diveSpeed || this.diveSpeed);
                             }
                             if (invader.y > this.viewH + 40) {
                                 invader.destroy();
@@ -2213,6 +2419,11 @@
                         this.invaderSpeed += this.speedX;
                     }
 
+                    if (this.raidAt > 0 && time > this.raidAt) {
+                        this.raidAt = 0;
+                        this.launchRaid();
+                    }
+
                     if (this.maxDivers > 0 && time > this.nextDiveAt) {
                         const diving = this.invaders.getChildren().filter(
                             invader => invader.active && invader.isDiving
@@ -2246,6 +2457,11 @@
         };
 
         const game = new Phaser.Game(config);
+
+        if (DEBUG) {
+            //  Handy hook for poking at the running game from the console.
+            window.game = game;
+        }
     </script>
 </body>
 </html>
