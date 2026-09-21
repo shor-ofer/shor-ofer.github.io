@@ -256,6 +256,7 @@
                 invader_b: { file: 'invader_b_sheet.png', size: 80 },
                 invader_c: { file: 'invader_c_sheet.png', size: 80 },
                 invader_d: { file: 'invader_d_sheet.png', size: 80 },
+                invader_e: { file: 'invader_e_sheet.png', size: 80 },
                 explosion: { file: 'explosion_sheet.png', size: 80 },
                 powerup: { file: 'powerup_sheet.png', size: 48 }
             },
@@ -1197,6 +1198,152 @@
                         });
                     };
 
+                    //  Strafing runs are flown along fixed curves rather than the
+                    //  march grid.  Each entry is a list of waypoints in unit space -
+                    //  x and y as a fraction of the board - so they scale with any
+                    //  screen, and the ends sit outside it so the squadron arrives
+                    //  from off-screen and leaves by the far side.
+                    this.STRAFE_PATHS = [
+                        //  A long swoop that dips towards the bunkers half way over.
+                        [[-0.14, 0.16], [0.22, 0.34], [0.5, 0.60], [0.78, 0.34], [1.14, 0.16]],
+                        //  A rolling S: down, back up, then away on the level.
+                        [[-0.14, 0.12], [0.26, 0.48], [0.5, 0.26], [0.74, 0.54], [1.14, 0.30]],
+                        //  A high arc that passes right over the top of the swarm.
+                        [[-0.14, 0.50], [0.28, 0.20], [0.5, 0.13], [0.72, 0.20], [1.14, 0.50]]
+                    ];
+
+                    this.launchStrafe = function () {
+                        //  Several flyers are threaded onto one curve nose to tail, so
+                        //  they cross the board as a stream the player has to read.
+                        const count = this.strafeCount;
+                        if (count <= 0 || this.isGameOver) {
+                            return;
+                        }
+
+                        const waypoints = this.STRAFE_PATHS[this.strafePathIndex % this.STRAFE_PATHS.length];
+                        this.strafePathIndex += 1;
+
+                        //  Half the runs come in from the right, flying the same curve
+                        //  mirrored, so the player cannot camp one side of the screen.
+                        const fromRight = Phaser.Math.Between(0, 1) === 1;
+                        const points = waypoints.map(point => new Phaser.Math.Vector2(
+                            (fromRight ? 1 - point[0] : point[0]) * this.viewW,
+                            point[1] * this.viewH
+                        ));
+                        const curve = new Phaser.Curves.Spline(points);
+
+                        this.playSfx('sfx_dive', 0.4);
+
+                        for (let i = 0; i < count; i++) {
+                            const strafer = this.add.sprite(points[0].x, points[0].y, 'invader_e');
+                            strafer.setDisplaySize(44, 44);
+                            strafer.setDepth(7);
+                            strafer.hp = 1;
+                            strafer.maxHp = 1;
+                            strafer.points = 60;
+                            strafer.isStrafer = true;
+                            strafer.curve = curve;
+                            //  A negative start holds each flyer off the board until
+                            //  the one ahead of it has cleared the entry.
+                            strafer.t = -i * 0.14;
+                            strafer.tSpeed = 1 / this.strafeTravel;
+                            strafer.nextFireAt = this.time.now + this.strafeFireDelay + i * 150;
+                            strafer.play('invader_e_fly');
+                            this.strafers.add(strafer);
+                            this.physics.add.existing(strafer);
+                            strafer.body.setAllowGravity(false);
+                            strafer.body.setImmovable(true);
+                            //  Flown by hand along the curve, so arcade physics must
+                            //  not integrate it as well and write a stale position back.
+                            strafer.body.moves = false;
+
+                            //  A hot halo trailing each one: the swarm never glows, so
+                            //  a lit streak crossing the sky reads as something else.
+                            const glow = this.add.sprite(strafer.x, strafer.y, 'powerup_glow');
+                            glow.setDisplaySize(76, 76);
+                            glow.setTint(0xc85aff);
+                            glow.setBlendMode(Phaser.BlendModes.ADD);
+                            glow.setAlpha(0.45);
+                            glow.setDepth(6);
+                            glow.owner = strafer;
+                            this.straferGlows.push(glow);
+                        }
+                    };
+
+                    this.fireStraferBullet = function (strafer) {
+                        //  Aimed rather than dropped, and tinted to match its owner so
+                        //  the player can see which threat the shot came from.
+                        const bullet = this.add.sprite(strafer.x, strafer.y + 14, 'bullet_invader');
+                        bullet.setDisplaySize(10, 24);
+                        bullet.setTint(0xd070ff);
+                        this.physics.add.existing(bullet);
+                        this.invaderBullets.add(bullet);
+                        bullet.body.setSize(4 / bullet.scaleX, 12 / bullet.scaleY);
+                        bullet.body.setAllowGravity(false);
+
+                        const aim = Phaser.Math.Angle.Between(
+                            bullet.x, bullet.y,
+                            //  Aimed, but not sniped: dead shots from three flyers at
+                            //  once would be impossible to live through.
+                            this.player.x + Phaser.Math.Between(-80, 80), this.player.y
+                        );
+                        //  Held within 40 degrees of straight down: a near horizontal
+                        //  shot is impossible to read coming at you.
+                        const angle = Phaser.Math.Clamp(aim, Math.PI * 0.28, Math.PI * 0.72);
+                        this.physics.velocityFromRotation(
+                            angle, this.invaderBulletSpeed * 0.95, bullet.body.velocity
+                        );
+                        bullet.setRotation(angle - Math.PI / 2);
+                    };
+
+                    this.flyStrafers = function (time, delta) {
+                        const position = new Phaser.Math.Vector2();
+                        const tangent = new Phaser.Math.Vector2();
+
+                        this.strafers.getChildren().slice().forEach(strafer => {
+                            if (!strafer.active) {
+                                return;
+                            }
+
+                            strafer.t += delta * strafer.tSpeed;
+                            if (strafer.t >= 1) {
+                                strafer.destroy();   //  gone out the far side
+                                return;
+                            }
+
+                            const t = Math.max(0, strafer.t);
+                            strafer.curve.getPoint(t, position);
+                            strafer.setPosition(position.x, position.y);
+                            strafer.body.updateFromGameObject();
+
+                            //  The sprite is drawn nose to the right, so banking into
+                            //  the turn is just a matter of following the tangent.
+                            strafer.curve.getTangent(t, tangent);
+                            strafer.setRotation(Math.atan2(tangent.y, tangent.x));
+
+                            //  They shoot far more often than the swarm does - that is
+                            //  the whole point of the run - but only over the board.
+                            if (t > 0.08 && t < 0.92 && time > strafer.nextFireAt) {
+                                strafer.nextFireAt = time + this.strafeFireDelay;
+                                this.fireStraferBullet(strafer);
+                            }
+                        });
+
+                        //  Halos ride along with their flyer and die with it.  They are
+                        //  swept separately rather than from the flyer's own destroy
+                        //  handler: tearing down one display object from inside another
+                        //  one's teardown trips Phaser's shutdown sweep.
+                        this.straferGlows = this.straferGlows.filter(glow => {
+                            if (!glow.owner.active) {
+                                glow.destroy();
+                                return false;
+                            }
+                            glow.setPosition(glow.owner.x, glow.owner.y);
+                            glow.setAlpha(0.3 + 0.2 * Math.sin(time / 90 + glow.owner.t * 12));
+                            return true;
+                        });
+                    };
+
                     this.hitPlayerByInvader = function (objA, objB) {
                         const ship = (objA === this.player) ? objA : objB;
                         const invader = (ship === objA) ? objB : objA;
@@ -1704,7 +1851,10 @@
                         let killed = 0;
                         let points = 0;
 
-                        this.invaders.getChildren().slice().forEach(invader => {
+                        //  The beam does not care what kind of invader is in the way.
+                        const column = this.invaders.getChildren().concat(this.strafers.getChildren());
+
+                        column.forEach(invader => {
                             if (!invader.active) return;
                             if (Math.abs(invader.x - this.player.x) > reach + invader.displayWidth / 2) return;
 
@@ -1723,7 +1873,6 @@
                                 bullet.destroy();
                             }
                         });
-
                         if (killed > 0) {
                             this.score += points;
                             this.scoreText.setText('Score: ' + this.score);
@@ -2060,9 +2209,19 @@
                         this.raidDelay = Math.max(2600, 6500 - (level - 1) * 300);
                         this.raidAt = this.raiderCount > 0 ? this.time.now + this.raidDelay : 0;
 
+                        //  Strafing runs start at level 2 as a pair and build to a
+                        //  squadron of five, crossing faster and shooting harder each
+                        //  time. Even at their slowest they out-shoot the swarm.
+                        this.strafeCount = level < 2 ? 0 : Math.min(5, 2 + Math.floor((level - 1) / 3));
+                        this.strafeTravel = Math.max(2800, 5200 - (level - 1) * 200);
+                        this.strafeDelay = Math.max(7000, 16000 - (level - 1) * 900);
+                        this.strafeFireDelay = Math.max(620, 1300 - (level - 1) * 70);
+                        this.strafeAt = this.strafeCount > 0 ? this.time.now + this.strafeDelay * 0.6 : 0;
+
                         this.bullets.clear(true, true);
                         this.invaderBullets.clear(true, true);
                         this.invaders.clear(true, true);
+                        this.strafers.clear(true, true);
                         this.bonusShips.clear(true, true);
                         this.powerUps.clear(true, true);
                         this.stopSaucerSound();
@@ -2123,6 +2282,8 @@
                                 ' @ ' + this.diveSpeed + 'px/s' +
                                 '   raiders ' + this.raiderCount +
                                 ' @ ' + Math.round(this.raidDelay / 100) / 10 + 's' +
+                                '   strafers ' + this.strafeCount +
+                                ' @ ' + Math.round(this.strafeDelay / 100) / 10 + 's' +
                                 '   fire ' + this.invaderFireMin + '-' + this.invaderFireMax + 'ms' +
                                 '   march ' + Math.round(this.invaderSpeed)
                             );
@@ -2199,6 +2360,7 @@
 
                     this.player = null;
                     this.invaders = null;
+                    this.strafers = null;
                     this.bullets = null;
                     this.invaderBullets = null;
                     this.shields = null;
@@ -2233,6 +2395,13 @@
                     this.raidSpeed = 180;
                     this.raidDelay = 6000;
                     this.raidAt = 0;
+                    this.strafeCount = 0;
+                    this.strafeTravel = 4600;
+                    this.strafeDelay = 12000;
+                    this.strafeFireDelay = 1100;
+                    this.strafeAt = 0;
+                    this.strafePathIndex = 0;
+                    this.straferGlows = [];
                     this.debugText = null;
                     this.gameOverTexts = [];
                     this.cursors = null;
@@ -2264,14 +2433,14 @@
 
                     //  Animations live on the game, not the scene, so they survive a
                     //  restart and only ever need building once.
-                    ['invader_a', 'invader_b', 'invader_c', 'invader_d'].forEach(key => {
+                    ['invader_a', 'invader_b', 'invader_c', 'invader_d', 'invader_e'].forEach(key => {
                         if (this.anims.exists(key + '_fly')) {
                             return;
                         }
                         this.anims.create({
                             key: key + '_fly',
                             frames: this.anims.generateFrameNumbers(key, { start: 0, end: 1 }),
-                            frameRate: key === 'invader_d' ? 6 : 2,
+                            frameRate: (key === 'invader_d' || key === 'invader_e') ? 6 : 2,
                             repeat: -1
                         });
                     });
@@ -2295,6 +2464,11 @@
                     this.player.body.setImmovable(true);
 
                     this.invaders = this.physics.add.group({ runChildUpdate: true });
+
+                    //  Strafers are kept out of the swarm group on purpose: they must
+                    //  not join the march, nudge the edge turn, or hold up the level
+                    //  clear while they finish their run.
+                    this.strafers = this.physics.add.group();
 
                     this.bullets = this.physics.add.group({ runChildUpdate: true });
                     this.invaderBullets = this.physics.add.group({ runChildUpdate: true });
@@ -2433,6 +2607,7 @@
                     this.startLevel(1);
 
                     this.physics.add.overlap(this.bullets, this.invaders, this.hitInvader, null, this);
+                    this.physics.add.overlap(this.bullets, this.strafers, this.hitInvader, null, this);
                     this.physics.add.overlap(this.invaderBullets, this.player, this.hitPlayer, null, this);
                     this.physics.add.overlap(this.bullets, this.shields, this.hitShield, null, this);
                     this.physics.add.overlap(this.invaderBullets, this.shields, this.hitShield, null, this);
@@ -2552,7 +2727,9 @@
                     this.powerText.setText(powers.join('   '));
 
                     this.invaderBullets.children.each(bullet => {
-                        if (bullet.y > this.viewH) {
+                        //  Strafer shots come in at an angle, so they can leave by the
+                        //  side of the board as well as the bottom.
+                        if (bullet.y > this.viewH || bullet.x < -20 || bullet.x > this.viewW + 20) {
                             bullet.destroy();
                         }
                     });
@@ -2624,6 +2801,15 @@
                     if (this.raidAt > 0 && time > this.raidAt) {
                         this.raidAt = 0;
                         this.launchRaid();
+                    }
+
+                    //  In-flight strafers always finish their run, even while the
+                    //  wave-cleared banner is up; new ones wait for the next wave.
+                    this.flyStrafers(time, delta);
+
+                    if (this.strafeAt > 0 && time > this.strafeAt && !this.isTransitioning) {
+                        this.strafeAt = time + this.strafeDelay;
+                        this.launchStrafe();
                     }
 
                     if (this.maxDivers > 0 && time > this.nextDiveAt) {
