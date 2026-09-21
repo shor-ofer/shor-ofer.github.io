@@ -3,7 +3,8 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
-    <title>Space Invaders - Phaser.js</title>
+    <title>Space Invaders</title>
+    <link rel="stylesheet" href="lib/fonts.css" />
     <script src="lib/phaser-3.55.2.min.js"></script>
     <style>
         html, body {
@@ -46,9 +47,9 @@
             flex-wrap: wrap;
             gap: 12px;
             margin: 10px 0 8px;
-            font-family: monospace;
+            font-family: 'Outfit', sans-serif;
             font-size: 15px;
-            font-weight: bold;
+            font-weight: 500;
             color: #88ddff;
         }
         body.debug #debug-bar {
@@ -58,8 +59,9 @@
             height: 30px;
             min-width: 38px;
             padding: 0 10px;
-            font-size: 20px;
-            font-weight: bold;
+            font-family: 'Outfit', sans-serif;
+            font-size: 18px;
+            font-weight: 600;
             color: #88ddff;
             background: #111;
             border: 2px solid #88ddff;
@@ -67,10 +69,10 @@
             cursor: pointer;
         }
         #drop-gifts {
-            font-size: 14px !important;
+            font-size: 15px !important;
         }
         #toggle-sound {
-            font-size: 14px !important;
+            font-size: 15px !important;
             min-width: 76px;
         }
         #debug-bar button:hover {
@@ -113,6 +115,18 @@
         //  a wider view or a longer run-up than anybody else.  Every coordinate in
         //  the scene is derived from these two numbers.
         const DESIGN = { width: 800, height: 600 };
+
+        //  ---- lettering ------------------------------------------------------
+        //  Two faces from Google Fonts, vendored into lib/fonts.css: 'Jaro' is
+        //  the chunky display face used for anything that shouts, and 'Outfit'
+        //  is the quiet sans used for the lines that explain things.  Both run
+        //  a little narrower than the old monospace, so the sizes asked for by
+        //  the rest of the code are nudged up to fill the same space.
+        const FONT_DISPLAY = '"Jaro", sans-serif';
+        const FONT_BODY = '"Outfit", sans-serif';
+        const FONT_SCALE = { display: 1.25, body: 1.2 };
+        const displaySize = (size) => Math.round(size * FONT_SCALE.display);
+        const bodySize = (size) => Math.round(size * FONT_SCALE.body);
 
         //  ---- debug mode ---------------------------------------------------
         //  The level stepper, the gift dropper and the on-screen readout are
@@ -440,6 +454,58 @@
             }
         };
 
+        //  ---- the gift catalogue --------------------------------------------
+        //  One source of truth: the game reads the drop table from here and the
+        //  help page reads the descriptions. The order matches the frames in
+        //  powerup_sheet.png.
+        const POWERUPS = [
+            {
+                type: 'rapid', name: 'RAPID FIRE', colour: '#ffbe28', tint: 0xffbe28, weight: 6,
+                blurb: 'the cannon cycles twice as fast',
+                detail: 'lasts 8 seconds'
+            },
+            {
+                type: 'multi', name: 'TRIPLE SHOT', colour: '#ff7828', tint: 0xff7828, weight: 6,
+                blurb: 'fires a three-bullet fan instead of one',
+                detail: 'lasts 10 seconds'
+            },
+            {
+                type: 'laser', name: 'LASER', colour: '#ff3c3c', tint: 0xff3c3c, weight: 4,
+                blurb: 'burns a beam straight up the screen',
+                detail: 'everything in the column goes at once'
+            },
+            {
+                type: 'life', name: 'EXTRA LIFE', colour: '#3ce66e', tint: 0x3ce66e, weight: 3,
+                blurb: 'one more ship in reserve',
+                detail: 'five is as many as you can hold'
+            },
+            {
+                type: 'twin', name: 'TWIN SHIP', colour: '#46c8ff', tint: 0x46c8ff, weight: 3,
+                blurb: 'a wingman flies at your side and fires with you',
+                detail: 'it picks up gifts too  -  lasts 12 seconds'
+            },
+            {
+                type: 'push', name: 'PUSH BACK', colour: '#b478ff', tint: 0xaa78ff, weight: 3,
+                blurb: 'shoves the swarm back to its starting row',
+                detail: 'any dive already in progress is called off'
+            },
+            {
+                type: 'nuke', name: 'MEGA BOMB', colour: '#ff46be', tint: 0xff46be, weight: 1,
+                blurb: 'every invader on the board goes up at once',
+                detail: 'the rarest gift in the game'
+            },
+            {
+                type: 'shield', name: 'FORCE FIELD', colour: '#c8d7eb', tint: 0xc8d7eb, weight: 4,
+                blurb: 'a bubble that burns whatever touches it',
+                detail: 'lasts 7 seconds'
+            },
+            {
+                type: 'scramble', name: 'SCRAMBLE', colour: '#3cdcbe', tint: 0x3cdcbe, weight: 4,
+                blurb: 'the survivors close ranks and swap places',
+                detail: 'the gaps you shot in the formation vanish'
+            }
+        ];
+
         //  ---- the menu ------------------------------------------------------
         //  Start page, scoreboard, options and credits, all drawn on the same
         //  800 x 600 board as the game so every device sees the same layout.
@@ -466,16 +532,24 @@
                 this.pageName = 'main';
                 this.buttons = [];
                 this.selected = 0;
+                this.wheelReadyAt = 0;
 
                 //  ---- page furniture ------------------------------------------
+                //  Headings and buttons get the display face; anything passed as
+                //  'normal' is body copy and gets the quieter sans instead.
                 this.label = function (text, y, size, colour, weight) {
+                    const quiet = (weight === 'normal');
+                    const px = quiet ? bodySize(size) : displaySize(size);
                     const item = this.add.text(W / 2, y, text, {
-                        fontFamily: 'monospace',
-                        fontSize: size + 'px',
+                        fontFamily: quiet ? FONT_BODY : FONT_DISPLAY,
+                        fontSize: px + 'px',
                         fill: colour,
-                        fontStyle: weight || 'bold',
+                        //  Jaro comes in one weight only, so the outline does the
+                        //  work a bold cut would have done.
+                        fontStyle: quiet ? '500' : 'normal',
                         stroke: '#000000',
-                        strokeThickness: Math.max(3, Math.round(size / 8)),
+                        //  A heavy outline would close up the smaller body text.
+                        strokeThickness: quiet ? 2 : Math.max(3, Math.round(px / 8)),
                         align: 'center'
                     });
                     item.setOrigin(0.5);
@@ -485,7 +559,9 @@
 
                 this.button = function (text, y, action) {
                     const item = this.label(text, y, 26, MENU_IDLE);
-                    item.setPadding(16, 10, 16, 10);
+                    //  Just enough padding to click comfortably without the
+                    //  hit boxes of neighbouring buttons touching.
+                    item.setPadding(18, 4, 18, 4);
                     item.action = action;
                     item.setInteractive({ useHandCursor: true });
                     item.on('pointerover', () => this.select(this.buttons.indexOf(item)));
@@ -525,6 +601,8 @@
                     this.page = this.add.container(0, 0);
                     this.buttons = [];
                     this.selected = 0;
+                    //  Only pages that browse a list hook this up.
+                    this.pageStep = null;
                     this.pageName = name;
                     PAGES[name].call(this, W, H);
                     this.select(0);
@@ -556,10 +634,11 @@
                         this.label(best > 0 ? 'BEST   ' + best : 'nothing on the board yet',
                                    250, 18, '#ffdd55');
 
-                        this.button('PLAY', 312, () => this.scene.start('Game'));
-                        this.button('HIGH SCORES', 362, () => this.show('scores'));
-                        this.button('OPTIONS', 412, () => this.show('options'));
-                        this.button('CREDITS', 462, () => this.show('credits'));
+                        this.button('PLAY', 300, () => this.scene.start('Game'));
+                        this.button('HIGH SCORES', 348, () => this.show('scores'));
+                        this.button('POWER-UPS', 396, () => this.show('powerups'));
+                        this.button('OPTIONS', 444, () => this.show('options'));
+                        this.button('CREDITS', 492, () => this.show('credits'));
 
                         this.label('arrows or drag to move     space or hold to fire',
                                    548, 15, '#88ddff', 'normal');
@@ -591,6 +670,110 @@
                         }
 
                         this.button('BACK', 542, () => this.show('main'));
+                    },
+
+                    powerups: function (W, H) {
+                        this.label('POWER-UPS', 58, 34, '#ffdd55');
+                        this.label('every gift the invaders leave behind', 92, 15,
+                                   '#88ddff', 'normal');
+
+                        const total = POWERUPS.reduce((sum, gift) => sum + gift.weight, 0);
+                        const centreY = 176;
+
+                        const glow = this.add.sprite(W / 2, centreY, 'powerup_glow');
+                        glow.setDisplaySize(132, 132);
+                        glow.setBlendMode(Phaser.BlendModes.ADD);
+                        glow.setAlpha(0.55);
+                        this.page.add(glow);
+
+                        const capsule = this.add.sprite(W / 2, centreY, 'powerup', 0);
+                        capsule.setDisplaySize(76, 76);
+                        capsule.setInteractive({ useHandCursor: true });
+                        capsule.on('pointerdown', () => this.pageStep(1));
+                        this.page.add(capsule);
+
+                        //  Clicking either side of the capsule flips through the list.
+                        const arrow = (text, x, dir) => {
+                            const item = this.label(text, centreY, 44, MENU_IDLE);
+                            item.setX(x);
+                            item.setPadding(18, 12, 18, 12);
+                            item.setInteractive({ useHandCursor: true });
+                            item.on('pointerover', () => item.setColor(MENU_ACTIVE));
+                            item.on('pointerout', () => item.setColor(MENU_IDLE));
+                            item.on('pointerdown', () => this.pageStep(dir));
+                        };
+                        arrow('<', W / 2 - 186, -1);
+                        arrow('>', W / 2 + 186, 1);
+
+                        const name = this.label('', 256, 30, '#ffffff');
+                        const blurb = this.label('', 298, 17, '#ffffff', 'normal');
+                        const detail = this.label('', 326, 15, '#88ddff', 'normal');
+                        const odds = this.label('', 366, 15, MENU_IDLE, 'normal');
+
+                        const dots = POWERUPS.map((gift, i) => {
+                            const x = W / 2 + (i - (POWERUPS.length - 1) / 2) * 24;
+                            const dot = this.add.circle(x, 406, 5, 0x2f4f63);
+                            this.page.add(dot);
+                            return dot;
+                        });
+
+                        this.label('left and right arrows, the mouse wheel, or click a gift',
+                                   446, 14, '#88ddff', 'normal');
+
+                        let index = 0;
+                        const paint = () => {
+                            const gift = POWERUPS[index];
+                            capsule.setFrame(index);
+                            glow.setTint(gift.tint);
+                            name.setText(gift.name);
+                            name.setColor(gift.colour);
+                            blurb.setText(gift.blurb);
+                            detail.setText(gift.detail);
+                            odds.setText('drop chance   ' +
+                                         Math.round(gift.weight / total * 100) + '%');
+                            dots.forEach((dot, i) => {
+                                dot.setFillStyle(i === index ? gift.tint : 0x2f4f63);
+                                dot.setScale(i === index ? 1.4 : 1);
+                            });
+                        };
+
+                        this.pageStep = (dir) => {
+                            index = Phaser.Math.Wrap(index + dir, 0, POWERUPS.length);
+                            paint();
+                            SFX.play(this, 'sfx_shoot', 0.4);
+                            //  The capsule slides in from the side it came from.
+                            capsule.setX(W / 2 + dir * 30);
+                            this.tweens.add({
+                                targets: capsule,
+                                x: W / 2,
+                                duration: 180,
+                                ease: 'Quad.easeOut'
+                            });
+                            name.setAlpha(0);
+                            this.tweens.add({ targets: name, alpha: 1, duration: 220 });
+                        };
+
+                        paint();
+
+                        this.tweens.add({
+                            targets: glow,
+                            alpha: 0.85,
+                            scale: glow.scaleX * 1.12,
+                            duration: 760,
+                            yoyo: true,
+                            repeat: -1
+                        });
+                        this.tweens.add({
+                            targets: capsule,
+                            y: centreY - 8,
+                            duration: 900,
+                            yoyo: true,
+                            repeat: -1,
+                            ease: 'Sine.easeInOut'
+                        });
+
+                        this.button('NEXT GIFT', 488, () => this.pageStep(1));
+                        this.button('BACK', 538, () => this.show('main'));
                     },
 
                     options: function (W, H) {
@@ -659,6 +842,25 @@
                 this.input.keyboard.on('keydown-DOWN', () => this.select(this.selected + 1));
                 this.input.keyboard.on('keydown-ENTER', () => this.activate());
                 this.input.keyboard.on('keydown-SPACE', () => this.activate());
+                //  Left and right, plus the wheel, browse pages that hold a list.
+                this.input.keyboard.on('keydown-LEFT', () => {
+                    if (this.pageStep) {
+                        this.pageStep(-1);
+                    }
+                });
+                this.input.keyboard.on('keydown-RIGHT', () => {
+                    if (this.pageStep) {
+                        this.pageStep(1);
+                    }
+                });
+                this.input.on('wheel', (pointer, objects, deltaX, deltaY) => {
+                    //  One flick of the wheel should move one step, not ten.
+                    if (!this.pageStep || deltaY === 0 || this.time.now < this.wheelReadyAt) {
+                        return;
+                    }
+                    this.wheelReadyAt = this.time.now + 160;
+                    this.pageStep(deltaY > 0 ? 1 : -1);
+                });
                 this.input.keyboard.on('keydown-ESC', () => {
                     if (this.pageName !== 'main') {
                         this.show('main');
@@ -1097,9 +1299,9 @@
 
                     this.floatLabel = function (x, y, text, colour) {
                         const label = this.add.text(x, y, text, {
-                            fontSize: '22px',
+                            fontFamily: FONT_DISPLAY,
+                            fontSize: displaySize(22) + 'px',
                             fill: colour,
-                            fontStyle: 'bold',
                             stroke: '#000000',
                             strokeThickness: 4
                         });
@@ -1640,7 +1842,7 @@
 
                         const rank = HIGH_SCORES.submit(this.score, this.level);
 
-                        const gameOverText = this.add.text(this.viewW / 2, this.viewH / 2 - 40, 'GAME OVER', { fontSize: '48px', fill: '#ff0000', fontStyle: 'bold' });
+                        const gameOverText = this.add.text(this.viewW / 2, this.viewH / 2 - 40, 'GAME OVER', { fontFamily: FONT_DISPLAY, fontSize: displaySize(48) + 'px', fill: '#ff0000', stroke: '#000000', strokeThickness: 5 });
                         gameOverText.setOrigin(0.5);
                         gameOverText.setDepth(100);
 
@@ -1655,15 +1857,15 @@
                             verdict = 'HIGH SCORE  #' + rank + '     ' + this.score;
                             verdictColour = '#8cffcd';
                         }
-                        const verdictText = this.add.text(this.viewW / 2, this.viewH / 2 + 20, verdict, { fontSize: '24px', fill: verdictColour, fontStyle: 'bold', stroke: '#000000', strokeThickness: 4 });
+                        const verdictText = this.add.text(this.viewW / 2, this.viewH / 2 + 20, verdict, { fontFamily: FONT_DISPLAY, fontSize: displaySize(24) + 'px', fill: verdictColour, stroke: '#000000', strokeThickness: 4 });
                         verdictText.setOrigin(0.5);
                         verdictText.setDepth(100);
 
-                        const promptText = this.add.text(this.viewW / 2, this.viewH / 2 + 70, 'tap or press a key for the menu', { fontSize: '22px', fill: '#fff', fontStyle: 'bold' });
+                        const promptText = this.add.text(this.viewW / 2, this.viewH / 2 + 70, 'tap or press a key for the menu', { fontFamily: FONT_BODY, fontSize: bodySize(22) + 'px', fill: '#fff', stroke: '#000000', strokeThickness: 3 });
                         promptText.setOrigin(0.5);
                         promptText.setDepth(100);
 
-                        const countText = this.add.text(this.viewW / 2, this.viewH / 2 + 106, '', { fontSize: '18px', fill: '#88ddff', fontStyle: 'bold' });
+                        const countText = this.add.text(this.viewW / 2, this.viewH / 2 + 106, '', { fontFamily: FONT_BODY, fontSize: bodySize(18) + 'px', fill: '#88ddff', stroke: '#000000', strokeThickness: 3 });
                         countText.setOrigin(0.5);
                         countText.setDepth(100);
 
@@ -1873,9 +2075,9 @@
                         this.playSfx('sfx_level_start', 0.7);
 
                         const banner = this.add.text(this.viewW / 2, this.viewH * 0.43, 'LEVEL ' + level, {
-                            fontSize: '44px',
+                            fontFamily: FONT_DISPLAY,
+                            fontSize: displaySize(44) + 'px',
                             fill: '#00ff00',
-                            fontStyle: 'bold',
                             stroke: '#000000',
                             strokeThickness: 6
                         });
@@ -1956,9 +2158,9 @@
 
                         const clearedY = this.viewH * 0.42;
                         const cleared = this.add.text(this.viewW / 2, clearedY, 'WAVE ' + this.level + ' CLEARED', {
-                            fontSize: '40px',
+                            fontFamily: FONT_DISPLAY,
+                            fontSize: displaySize(40) + 'px',
                             fill: '#8cffcd',
-                            fontStyle: 'bold',
                             stroke: '#000000',
                             strokeThickness: 6
                         });
@@ -2009,12 +2211,11 @@
                     this.twinUntil = 0;
                     this.shieldUntil = 0;
                     this.forceField = null;
-                    this.POWER_TYPES = ['rapid', 'multi', 'laser', 'life', 'twin', 'push', 'nuke', 'shield', 'scramble'];
+                    this.POWER_TYPES = POWERUPS.map(gift => gift.type);
                     //  Drop odds: the screen-clearing bomb has to stay rare.
-                    this.POWER_WEIGHTS = [6, 6, 4, 3, 3, 3, 1, 4, 4];
+                    this.POWER_WEIGHTS = POWERUPS.map(gift => gift.weight);
                     //  Halo colours, matching the capsule artwork.
-                    this.POWER_TINTS = [0xffbe28, 0xff7828, 0xff3c3c, 0x3ce66e, 0x46c8ff,
-                                        0xaa78ff, 0xff46be, 0xc8d7eb, 0x3cdcbe];
+                    this.POWER_TINTS = POWERUPS.map(gift => gift.tint);
                     this.powerGlows = [];
                     this.nextBonusAt = 0;
                     this.marchStep = 0;
@@ -2131,9 +2332,9 @@
                     });
 
                     const hudStyle = {
-                        fontSize: '24px',
+                        fontFamily: FONT_DISPLAY,
+                        fontSize: displaySize(24) + 'px',
                         fill: '#fff',
-                        fontStyle: 'bold',
                         stroke: '#000000',
                         strokeThickness: 4
                     };
@@ -2148,9 +2349,9 @@
                     this.levelText.setDepth(100);
 
                     this.powerText = this.add.text(this.viewW - 16, 50, '', {
-                        fontSize: '16px',
+                        fontFamily: FONT_DISPLAY,
+                        fontSize: displaySize(16) + 'px',
                         fill: '#ffdd55',
-                        fontStyle: 'bold',
                         stroke: '#000000',
                         strokeThickness: 4
                     });
@@ -2217,7 +2418,8 @@
 
                     if (DEBUG) {
                         this.debugText = this.add.text(16, this.viewH - 22, '', {
-                            fontSize: '13px',
+                            fontFamily: FONT_BODY,
+                            fontSize: bodySize(13) + 'px',
                             fill: '#88ddff',
                             stroke: '#000000',
                             strokeThickness: 3,
@@ -2456,12 +2658,27 @@
             }]
         };
 
-        const game = new Phaser.Game(config);
+        //  Phaser bakes text into canvas the moment a scene draws it, so a face
+        //  that arrives late would leave the menu stuck in the fallback font.
+        //  Both are asked for up front, and the game waits - but not for ever.
+        const fontsReady = (document.fonts && document.fonts.load)
+            ? Promise.race([
+                Promise.all([
+                    document.fonts.load('16px "Jaro"'),
+                    document.fonts.load('16px "Outfit"')
+                ]),
+                new Promise(resolve => setTimeout(resolve, 3000))
+            ])
+            : Promise.resolve();
 
-        if (DEBUG) {
-            //  Handy hook for poking at the running game from the console.
-            window.game = game;
-        }
+        fontsReady.then(() => {
+            const game = new Phaser.Game(config);
+
+            if (DEBUG) {
+                //  Handy hook for poking at the running game from the console.
+                window.game = game;
+            }
+        });
     </script>
 </body>
 </html>

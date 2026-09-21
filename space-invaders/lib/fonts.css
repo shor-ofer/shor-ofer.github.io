@@ -1,0 +1,16 @@
+/*  Fonts from Google Fonts, both under the SIL Open Font License.
+    Jaro by Vinicius Mateus  -  the chunky display face on titles and buttons.
+    Outfit by Smartsheet Inc.  -  the quiet sans used for body copy.
+    Both are variable fonts; the licences sit beside the .ttf files.  */
+@font-face {
+    font-family: 'Jaro';
+    font-style: normal;
+    font-weight: 400;
+    src: url('../assets/fonts/Jaro.ttf') format('truetype');
+}
+@font-face {
+    font-family: 'Outfit';
+    font-style: normal;
+    font-weight: 100 900;
+    src: url('../assets/fonts/Outfit.ttf') format('truetype');
+}
