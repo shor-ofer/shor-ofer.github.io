@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8" />
+    <title>Space Invaders - Phaser.js (Class Version)</title>
+    <script src="https://cdn.jsdelivr.net/npm/phaser@3.55.2/dist/phaser.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+        #game {
+            background-color: #111;
+            border: 2px solid #555;
+            border-radius: 8px;
+        }
+    </style>
+</head>
+<body>
+    <div id="game"></div>
+    <script>
+        class GameScene extends Phaser.Scene {
+            constructor() {
+                super('GameScene');
+            }
+
+            preload() {
+                // We'll draw shapes instead of loading images
+            }
+
+            create() {
+                // Debug: check what 'this' is
+                console.log('DEBUG: typeof this =', typeof this);
+                console.log('DEBUG: this.add =', this.add);
+                console.log('DEBUG: this.physics =', this.physics);
+                console.log('DEBUG: this.input =', this.input);
+
+                // Initialize variables
+                this.player = null;
+                this.invaders = null;
+                this.bullets = null;
+                this.invaderBullets = null;
+                this.cursors = null;
+                this.spaceKey = null;
+                this.score = 0;
+                this.scoreText = null;
+                this.lives = 3;
+                this.livesText = null;
+                this.playerHitTimer = 0;
+                this.invaderSpeed = 35;
+                this.invaderDirection = 1; // 1 for right, -1 for left
+                this.invaderDropDistance = 20;
+                this.invaderFireRate = 1000;
+                this.nextInvaderFire = 0;
+                this.lastFired = 0;
+
+                // Create player
+                this.player = this.add.rectangle(400, 550, 60, 20, 0x00ff00);
+                this.player.setVisible(true);
+                this.player.setAlpha(1);
+                this.physics.add.existing(this.player);
+                this.player.body.setAllowGravity(false);
+                this.player.body.setImmovable(true);
+
+                // Create invaders
+                this.invaders = this.physics.add.group({
+                    classType: Phaser.GameObjects.Rectangle,
+                    runChildUpdate: true
+                });
+
+                const invaderSize = 30;
+                const padding = 10;
+                const startX = 100;
+                const startY = 100;
+                const rows = 5;
+                const cols = 10;
+
+                for (let row = 0; row < rows; row++) {
+                    for (let col = 0; col < cols; col++) {
+                        const x = startX + col * (invaderSize + padding);
+                        const y = startY + row * (invaderSize + padding);
+                        const invader = this.invaders.create(x, y, invaderSize, invaderSize, 0xff0000);
+                        invader.body.setAllowGravity(false);
+                        invader.body.setImmovable(true);
+                    }
+                }
+
+                // Create player bullets
+                this.bullets = this.physics.add.group({
+                    classType: Phaser.GameObjects.Rectangle,
+                    runChildUpdate: true,
+                    maxSize: 50
+                });
+
+                // Create invader bullets
+                this.invaderBullets = this.physics.add.group({
+                    classType: Phaser.GameObjects.Rectangle,
+                    runChildUpdate: true,
+                    maxSize: 50
+                });
+
+                // Keyboard input
+                this.cursors = this.input.keyboard.createCursorKeys();
+                this.spaceKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
+
+                // Score text
+                this.scoreText = this.add.text(16, 16, 'Score: 0', { fontSize: '24px', fill: '#fff' });
+
+                // Lives text
+                this.livesText = this.add.text(16, 50, 'Lives: 3', { fontSize: '24px', fill: '#fff' });
+
+                // Physics collisions
+                this.physics.add.overlap(this.bullets, this.invaders, this.hitInvader, null, this);
+                this.physics.add.overlap(this.invaderBullets, this.player, this.hitPlayer, null, this);
+                this.physics.add.overlap(this.player, this.invaders, this.gameOver, null, this);
+            }
+
+            update(time, delta) {
+                if (this.player && this.player.active) {
+                    this.player.setVisible(true);
+                    this.player.setAlpha(1);
+                    if (this.playerHitTimer > 0) {
+                        this.playerHitTimer -= delta;
+                        const flashOn = Math.floor(this.playerHitTimer / 80) % 2 === 0;
+                        this.player.setFillStyle(flashOn ? 0xff0000 : 0x00ff00);
+                    } else {
+                        this.player.setFillStyle(0x00ff00);
+                    }
+                }
+
+                // Player movement
+                if (this.cursors.left.isDown) {
+                    this.player.x -= 4;
+                    if (this.player.x < 30) this.player.x = 30;
+                } else if (this.cursors.right.isDown) {
+                    this.player.x += 4;
+                    if (this.player.x > 770) this.player.x = 770;
+                }
+
+                // Fire bullet
+                if (this.spaceKey.isDown && time > this.lastFired) {
+                    const bullet = this.bullets.create(this.player.x, this.player.y - 20, 4, 12, 0xffff00);
+                    bullet.body.setVelocityY(-300);
+                    this.lastFired = time + 250;
+                }
+
+                // Update bullets
+                this.bullets.children.each(bullet => {
+                    if (bullet.y < 0) {
+                        bullet.destroy();
+                    }
+                });
+
+                // Update invader bullets
+                this.invaderBullets.children.each(bullet => {
+                    if (bullet.y > 600) {
+                        bullet.destroy();
+                    }
+                });
+
+                // Move invaders one-by-one so the physics bodies stay synchronized
+                const invaderStep = this.invaderDirection * (this.invaderSpeed * delta / 1000);
+                this.invaders.children.each(invader => {
+                    if (!invader || !invader.active) return;
+                    invader.x += invaderStep;
+                    if (invader.body) {
+                        invader.body.updateFromGameObject();
+                    }
+                });
+
+                // Check if invaders hit edges
+                let hitEdge = false;
+                this.invaders.children.each(invader => {
+                    if (!invader || !invader.active) return;
+                    const leftEdge = invader.x - invader.width / 2;
+                    const rightEdge = invader.x + invader.width / 2;
+                    if (this.invaderDirection === 1 && rightEdge > 750) {
+                        hitEdge = true;
+                    } else if (this.invaderDirection === -1 && leftEdge < 50) {
+                        hitEdge = true;
+                    }
+                });
+
+                if (hitEdge) {
+                    this.invaderDirection *= -1;
+                    this.invaders.children.each(invader => {
+                        if (invader && invader.active) {
+                            invader.y += this.invaderDropDistance;
+                            if (invader.body) {
+                                invader.body.updateFromGameObject();
+                            }
+                        }
+                    });
+                    // Speed up slightly when dropping
+                    this.invaderSpeed += 2;
+                }
+
+                // Invader firing
+                if (time > this.nextInvaderFire) {
+                    this.fireInvaderBullet();
+                    this.nextInvaderFire = time + Phaser.Math.Between(500, 2000);
+                }
+
+                // Check for victory
+                if (this.invaders.countActive() === 0) {
+                    this.victory();
+                }
+            }
+
+            hitInvader(bullet, invader) {
+                bullet.destroy();
+                invader.destroy();
+                this.score += 10;
+                this.scoreText.setText('Score: ' + this.score);
+            }
+
+            hitPlayer(player, bullet) {
+                if (!this.player || !this.player.active) {
+                    if (bullet && bullet.active) bullet.destroy();
+                    return;
+                }
+
+                if (this.playerHitTimer > 0) {
+                    if (bullet && bullet.active) bullet.destroy();
+                    return;
+                }
+
+                bullet.destroy();
+                this.lives--;
+                this.livesText.setText('Lives: ' + this.lives);
+
+                this.playerHitTimer = 800;
+                this.player.setVisible(true);
+                this.player.setAlpha(1);
+                this.player.setFillStyle(0xff0000);
+
+                if (this.lives <= 0) {
+                    this.gameOver();
+                }
+            }
+
+            fireInvaderBullet() {
+                const aliveInvaders = this.invaders.getChildren().filter(invader => invader.active);
+                if (aliveInvaders.length > 0) {
+                    const randomInvader = Phaser.Utils.Array.GetRandom(aliveInvaders);
+                    const bullet = this.invaderBullets.create(randomInvader.x, randomInvader.y + 20, 4, 12, 0x00ffff);
+                    bullet.body.setVelocityY(200);
+                }
+            }
+
+            gameOver() {
+                this.physics.pause();
+                this.player.setFillStyle(0xff0000);
+                const gameOverText = this.add.text(400, 300, 'GAME OVER', { fontSize: '48px', fill: '#ff0000' });
+                gameOverText.setOrigin(0.5);
+                const restartText = this.add.text(400, 360, 'Press R to Restart', { fontSize: '24px', fill: '#fff' });
+                restartText.setOrigin(0.5);
+                this.input.keyboard.once('keydown-R', () => {
+                    this.scene.restart();
+                });
+            }
+
+            victory() {
+                this.physics.pause();
+                const victoryText = this.add.text(400, 300, 'VICTORY!', { fontSize: '48px', fill: '#00ff00' });
+                victoryText.setOrigin(0.5);
+                const restartText = this.add.text(400, 360, 'Press R to Restart', { fontSize: '24px', fill: '#fff' });
+                restartText.setOrigin(0.5);
+                this.input.keyboard.once('keydown-R', () => {
+                    this.scene.restart();
+                });
+            }
+        }
+
+        const config = {
+            type: Phaser.AUTO,
+            width: 800,
+            height: 600,
+            backgroundColor: '#000',
+            scene: GameScene
+        };
+
+        const game = new Phaser.Game(config);
+    </script>
+</body>
+</html>
