@@ -22,11 +22,12 @@
     display: flex; flex-direction: column; align-items: center;
   }
   #stage {
-    width: 100%; border-radius: 10px; overflow: hidden;
+    width: 100%; aspect-ratio: 20 / 12; border-radius: 10px; overflow: hidden;
     box-shadow: 0 8px 24px rgba(0,0,0,0.5);
     border: 3px solid #4a3560;
+    background: #6bb8e8;
   }
-  canvas { display: block; width: 100%; height: auto; background: #cfe8ff; }
+  canvas { display: block; position: absolute; inset: 0; width: 100%; height: 100%; background: #6bb8e8; }
   #controls {
     width: 100%; display: flex; justify-content: space-between;
     align-items: center; margin-top: 14px; padding: 0 4px;
@@ -45,8 +46,31 @@
     box-shadow: 0 4px 0 #b0800b, 0 6px 10px rgba(0,0,0,0.3);
     font-size: 15px;
   }
-  #moveGroup { display: flex; gap: 12px; }
+  #joystickBase {
+    width: 104px; height: 104px; border-radius: 50%;
+    background: rgba(255,157,77,0.18);
+    border: 3px solid rgba(255,157,77,0.45);
+    display: flex; align-items: center; justify-content: center;
+    touch-action: none;
+  }
+  #joystickKnob {
+    width: 52px; height: 52px; border-radius: 50%;
+    background: linear-gradient(145deg, #ff9d4d, #e8752a);
+    box-shadow: 0 4px 10px rgba(0,0,0,0.35), inset 0 0 0 2px rgba(255,255,255,0.15);
+    transition: transform 0.18s ease-out;
+    touch-action: none;
+  }
+  #joystickKnob.dragging { transition: none; }
   #status { color: #cbb8e0; font-size: 12px; margin-top: 8px; height: 16px; }
+  #pauseBtn {
+    margin-top: 10px; padding: 8px 22px; border-radius: 10px;
+    border: none; font-size: 14px; font-weight: bold; color: white;
+    background: linear-gradient(145deg, #8a6fd6, #5f43ad);
+    box-shadow: 0 3px 0 #3e2c78;
+  }
+  #pauseMainButtons, #pauseConfirm {
+    display: flex; flex-direction: column; align-items: center; gap: 10px;
+  }
   #stage { position: relative; }
   #score {
     position: absolute; top: 8px; left: 8px;
@@ -93,6 +117,47 @@
   .overlay p {
     color: #e8dcf5; font-size: 13px; margin: 0;
   }
+  #transitionOverlay {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
+    background: rgba(20,12,28,0.55);
+    pointer-events: none;
+  }
+  #transitionText {
+    color: #ffd35a;
+    font-size: 42px;
+    font-weight: bold;
+    letter-spacing: 1px;
+    text-shadow: 0 0 18px rgba(255,211,90,0.8), 0 3px 0 rgba(0,0,0,0.4);
+    animation: transitionPop 0.4s ease-out;
+  }
+  #transitionStars {
+    font-size: 28px;
+    text-shadow: 0 0 10px rgba(255,211,90,0.6);
+    animation: transitionPop 0.5s ease-out 0.15s both;
+  }
+  #achievementToast {
+    position: absolute; top: 12px; left: 50%;
+    transform: translateX(-50%);
+    background: linear-gradient(145deg, #3a2a52, #241a38);
+    border: 1px solid rgba(255,211,90,0.5);
+    border-radius: 10px;
+    padding: 8px 16px;
+    color: #ffd35a; font-weight: bold; font-size: 13px;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.4);
+    pointer-events: none;
+    animation: toastPop 0.35s ease-out;
+    white-space: nowrap;
+  }
+  @keyframes toastPop {
+    0%   { transform: translateX(-50%) translateY(-20px); opacity: 0; }
+    100% { transform: translateX(-50%) translateY(0); opacity: 1; }
+  }
+  @keyframes transitionPop {
+    0%   { transform: scale(0.4); opacity: 0; }
+    60%  { transform: scale(1.15); opacity: 1; }
+    100% { transform: scale(1); opacity: 1; }
+  }
   .bigbtn {
     min-width: 160px; padding: 10px 20px; border-radius: 10px;
     border: none; font-size: 15px; font-weight: bold; color: white;
@@ -118,6 +183,62 @@
   .nameInput::placeholder { color: #a893c2; }
   .hiscoreLine { min-height: 20px; width: 100%; max-width: 260px; }
   .hiscoreLine:empty { min-height: 0; }
+  #customLevelPanel {
+    display: flex; flex-direction: column; align-items: center; gap: 8px;
+    width: 100%; max-width: 280px;
+  }
+  #customLevelInput {
+    width: 100%; height: 110px; resize: vertical;
+    padding: 8px 10px; border-radius: 8px;
+    border: 1px solid rgba(255,211,90,0.4);
+    background: rgba(0,0,0,0.3); color: #f0e6fb;
+    font-family: monospace; font-size: 12px; line-height: 1.3;
+    -webkit-user-select: text; user-select: text;
+    touch-action: manipulation;
+  }
+  #customLevelInput::placeholder { color: #a893c2; }
+  #customLevelMsg { color: #ff8a8a; font-size: 12px; min-height: 14px; }
+  #optionsPanel {
+    display: flex; flex-direction: column; gap: 8px;
+    width: 100%; max-width: 260px;
+  }
+  .optionRow {
+    display: flex; align-items: center; justify-content: space-between;
+    background: rgba(0,0,0,0.25); border-radius: 8px;
+    padding: 8px 12px; color: #f0e6fb; font-size: 14px;
+  }
+  .toggleBtn {
+    min-width: 56px; padding: 5px 12px; border-radius: 14px;
+    border: none; font-size: 12px; font-weight: bold; color: white;
+    background: linear-gradient(145deg, #5fe86b, #2ea33f);
+    box-shadow: 0 2px 0 #1e7a2b;
+  }
+  .toggleBtn.off {
+    background: linear-gradient(145deg, #8a7a92, #5c4f66);
+    box-shadow: 0 2px 0 #3a3140;
+  }
+  .volumeSlider {
+    width: 100%; margin: -2px 0 4px; accent-color: #ff9d4d;
+    height: 20px;
+  }
+  #starsSummary {
+    color: #ffd35a; font-size: 13px; font-weight: bold;
+    min-height: 16px;
+  }
+  #achievementsList {
+    display: flex; flex-direction: column; gap: 8px;
+    width: 100%; max-width: 280px; max-height: 45vh; overflow-y: auto;
+  }
+  .achievementRow {
+    display: flex; align-items: center; gap: 10px;
+    background: rgba(0,0,0,0.25); border-radius: 8px;
+    padding: 8px 10px; text-align: left;
+    opacity: 0.55;
+  }
+  .achievementRow.unlocked { opacity: 1; border: 1px solid rgba(255,211,90,0.4); }
+  .achievementIcon { font-size: 20px; flex-shrink: 0; }
+  .achievementText { color: #f0e6fb; font-size: 12px; line-height: 1.4; }
+  .achievementText b { color: #ffd35a; font-size: 13px; }
   .hiscoreCard {
     background: linear-gradient(180deg, #2c1b40, #1f1230);
     border: 1px solid rgba(255,211,90,0.35);
@@ -159,10 +280,50 @@
     <div id="startScreen" class="overlay">
       <h2>🐛 Warm the Worm</h2>
       <p>Stomp the beetles, avoid their sides, don't fall!</p>
+      <div id="starsSummary"></div>
       <input id="nameInput" class="nameInput" type="text" maxlength="14" placeholder="Your name" autocomplete="off">
       <button class="bigbtn" id="playBtn">▶ Play</button>
       <button class="bigbtn secondary" id="hiscoreBtn">🏆 High Score</button>
+      <button class="bigbtn secondary" id="achievementsBtn">🎖️ Achievements</button>
+      <button class="bigbtn secondary" id="customLevelBtn">🧩 Custom Level</button>
+      <button class="bigbtn secondary" id="optionsBtn">⚙️ Options</button>
+    </div>
+
+    <div id="achievementsScreen" class="overlay hidden">
+      <h2>🎖️ Achievements</h2>
+      <div id="achievementsList"></div>
+      <button class="bigbtn secondary backBtn" data-back-to="startScreen">← Back</button>
+    </div>
+
+    <div id="hiscoreScreen" class="overlay hidden">
+      <h2>🏆 High Score</h2>
       <div id="hiscoreLine" class="hiscoreLine"></div>
+      <button class="bigbtn secondary backBtn" data-back-to="startScreen">← Back</button>
+    </div>
+
+    <div id="customLevelScreen" class="overlay hidden">
+      <h2>🧩 Custom Level</h2>
+      <textarea id="customLevelInput" placeholder="Paste your level here — # ground, . empty, / up-slope, D down-slope, T tunnel, L door, P start, E enemy, C coin, G gem, K key, S shield, V vertical elevator, H horizontal elevator, U duck-under ceiling"></textarea>
+      <button class="bigbtn" id="playCustomBtn">▶ Play This Level</button>
+      <div id="customLevelMsg"></div>
+      <button class="bigbtn secondary backBtn" data-back-to="startScreen">← Back</button>
+    </div>
+
+    <div id="optionsScreen" class="overlay hidden">
+      <h2>⚙️ Options</h2>
+      <div id="optionsPanel">
+        <div class="optionRow">
+          <span>🎵 Music</span>
+          <button class="toggleBtn" id="musicToggleBtn">ON</button>
+        </div>
+        <input type="range" class="volumeSlider" id="musicVolumeSlider" min="0" max="100" value="16">
+        <div class="optionRow">
+          <span>🔊 Sound Effects</span>
+          <button class="toggleBtn" id="effectsToggleBtn">ON</button>
+        </div>
+        <input type="range" class="volumeSlider" id="effectsVolumeSlider" min="0" max="100" value="100">
+      </div>
+      <button class="bigbtn secondary backBtn" data-back-to="startScreen">← Back</button>
     </div>
 
     <div id="gameOverScreen" class="overlay hidden">
@@ -173,25 +334,55 @@
       <button class="bigbtn secondary" id="hiscoreBtnGameOver">🏆 High Score</button>
       <div id="hiscoreLineGameOver" class="hiscoreLine"></div>
     </div>
+
+    <div id="winScreen" class="overlay hidden">
+      <h2>🎉 You Win!</h2>
+      <p id="winScoreLine">Score: 0</p>
+      <p id="winBestLine">Best: 0</p>
+      <button class="bigbtn" id="winAgainBtn">↻ Play Again</button>
+      <button class="bigbtn secondary" id="hiscoreBtnWin">🏆 High Score</button>
+      <div id="hiscoreLineWin" class="hiscoreLine"></div>
+    </div>
+
+    <div id="transitionOverlay" class="hidden">
+      <div id="transitionText">Level 2</div>
+      <div id="transitionStars"></div>
+    </div>
+
+    <div id="achievementToast" class="hidden"></div>
+
+    <div id="pauseScreen" class="overlay hidden">
+      <div id="pauseMainButtons">
+        <h2>⏸ Paused</h2>
+        <button class="bigbtn" id="resumeBtn">▶ Resume</button>
+        <button class="bigbtn secondary" id="restartBtn">🏠 Main Menu</button>
+      </div>
+      <div id="pauseConfirm" class="hidden">
+        <h2>Are you sure?</h2>
+        <p>You'll lose your current progress in this run.</p>
+        <button class="bigbtn" id="confirmMenuYes">Yes</button>
+        <button class="bigbtn secondary" id="confirmMenuNo">No</button>
+      </div>
+    </div>
   </div>
   <div id="controls">
-    <div id="moveGroup">
-      <button class="dbtn" id="leftBtn">◀</button>
-      <button class="dbtn" id="rightBtn">▶</button>
+    <div id="joystickBase">
+      <div id="joystickKnob"></div>
     </div>
     <button class="dbtn" id="jumpBtn">JUMP</button>
   </div>
-  <div id="status">arrow keys / WASD also work — level scrolls now!</div>
+  <button id="pauseBtn">⏸</button>
+  <div id="status">arrow keys / WASD — down to duck, wall jump off walls in midair</div>
 </div>
 
 <script>
 // ---------- Tile map (built programmatically, wider than the viewport) ----------
 const TILE = 32;
-const cols = 185;      // level is much wider than what's on screen at once
-const rows = 12;       // fits the screen height exactly, no vertical scroll needed
+let cols = 185;      // level is much wider than what's on screen at once
+let rows = 12;       // fits the screen height exactly, no vertical scroll needed
 const VIEW_COLS = 20;  // visible tiles across
 const DEPTH = 6;       // pseudo-3D extrusion depth in px
-const grid = Array.from({ length: rows }, () => Array(cols).fill('.'));
+let grid = Array.from({ length: rows }, () => Array(cols).fill('.'));
 
 function fillRect(row, colStart, colEnd) {
   for (let c = colStart; c <= colEnd; c++) grid[row][c] = '#';
@@ -276,7 +467,7 @@ fillSlopeDown(8, 166);
 // Positions are remembered so a fresh game can restore them if a
 // previous run already opened one.
 function fillDoor(row, col) { grid[row][col] = 'L'; }
-const lockedDoorSpots = [{ row: 10, col: 63 }, { row: 10, col: 150 }];
+let lockedDoorSpots = [{ row: 10, col: 63 }, { row: 10, col: 150 }];
 lockedDoorSpots.forEach(d => fillDoor(d.row, d.col));
 
 function solidAt(col, row) {
@@ -284,6 +475,16 @@ function solidAt(col, row) {
   if (row < 0 || col < 0 || col >= cols) return true; // walls/ceiling
   const cell = grid[row][col];
   return cell === '#' || cell === 'L'; // 'T' tunnel tiles are NOT solid — worm walks straight through
+}
+
+// 'U' is a low ceiling block occupying only the top half of its cell — a
+// duck-under doorway. It only blocks horizontal passage while NOT ducking;
+// crouch and it lets her straight through. It's otherwise non-solid (never
+// blocks vertically), so it only matters for the sideways walk-into check.
+function blocksHorizontally(col, row) {
+  if (row < 0 || row >= rows || col < 0 || col >= cols) return solidAt(col, row);
+  if (grid[row][col] === 'U') return !isDucking;
+  return solidAt(col, row);
 }
 
 // If (col,row) is a locked door and she's carrying a key, consume the key,
@@ -297,6 +498,7 @@ function tryOpenDoor(col, row) {
   grid[row][col] = '.';
   updateHud();
   playUnlockSound();
+  vibrate(30);
   return true;
 }
 
@@ -316,9 +518,11 @@ function rampSurfaceY(x) {
 
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
-canvas.width = VIEW_COLS * TILE;   // viewport size (what's shown)
-canvas.height = rows * TILE;
-const mapWidthPx = cols * TILE;
+const VIEW_ROWS = 12;               // visible tiles down — fixed viewport height
+canvas.width = VIEW_COLS * TILE;    // viewport size (what's shown)
+canvas.height = VIEW_ROWS * TILE;
+let mapWidthPx = cols * TILE;
+let mapHeightPx = rows * TILE;
 
 // ---------- Camera ----------
 const cam = { x: 0, y: 0 };
@@ -329,22 +533,32 @@ function updateCamera() {
     const frac = Math.min(1, camScroll.t / camScroll.duration);
     const eased = frac < 0.5 ? 2 * frac * frac : -1 + (4 - 2 * frac) * frac; // ease-in-out
     cam.x = camScroll.fromX + (camScroll.toX - camScroll.fromX) * eased;
-    if (frac >= 1) camScroll.active = false;
     cam.y = 0;
+    if (frac >= 1) camScroll.active = false;
     return;
   }
-  cam.x = warm.x - canvas.width / 2;
-  if (cam.x < 0) cam.x = 0;
-  if (cam.x > mapWidthPx - canvas.width) cam.x = mapWidthPx - canvas.width;
-  cam.y = 0;
+  if (mapWidthPx <= canvas.width) {
+    cam.x = 0; // level narrower than the screen — no horizontal scrolling needed
+  } else {
+    cam.x = warm.x - canvas.width / 2;
+    if (cam.x < 0) cam.x = 0;
+    if (cam.x > mapWidthPx - canvas.width) cam.x = mapWidthPx - canvas.width;
+  }
+  if (mapHeightPx <= canvas.height) {
+    cam.y = 0; // level shorter than the screen — no vertical scrolling needed
+  } else {
+    cam.y = warm.y - canvas.height / 2;
+    if (cam.y < 0) cam.y = 0;
+    if (cam.y > mapHeightPx - canvas.height) cam.y = mapHeightPx - canvas.height;
+  }
 }
 
 // ---------- Warm (the worm) ----------
-const START = { x: 3 * TILE + TILE / 2, y: 2 * TILE };
+let START = { x: 3 * TILE + TILE / 2, y: 2 * TILE };
 const R = 11;               // head radius
 const GRAVITY = 0.55;
 const MAX_FALL = 12;
-const SPEED = 2.6;
+const SPEED = 3.0;
 const JUMP_V = -10.5;
 
 const warm = { x: START.x, y: START.y, vx: 0, vy: 0, grounded: false };
@@ -357,11 +571,84 @@ const CHECKPOINT_POINT = { x: CHECKPOINT_X + 16, y: 2 * TILE };
 let respawnPoint = { x: START.x, y: START.y };
 let checkpointActivated = false;
 
+// ---------- Finish tile + level campaign ----------
+let finishPoint = null;       // {x,y,r} parsed from an 'F' in the level text
+let campaignActive = false;   // true while playing through BUILTIN_LEVELS in order
+let currentLevelIndex = 0;
+let levelTransition = null;   // { text, t, duration, action }
+let levelDeathOccurred = false; // reset each time a level starts; set true by any loseLife() this level
+
+// ---------- Stars (per built-in level) ----------
+let levelStars = [0, 0, 0, 0];
+try {
+  const saved = localStorage.getItem('warmWormLevelStars');
+  if (saved) levelStars = JSON.parse(saved);
+} catch (e) { /* ignore */ }
+
+function saveLevelStars() {
+  try { localStorage.setItem('warmWormLevelStars', JSON.stringify(levelStars)); } catch (e) { /* ignore */ }
+}
+
+function computeStarsForCurrentLevel() {
+  let stars = 1; // awarded just for reaching the finish
+  const total = coins.length + gems.length;
+  const collected = coins.filter(c => c.collected).length + gems.filter(g => g.collected).length;
+  if (total > 0 && collected === total) stars++;
+  if (!levelDeathOccurred) stars++;
+  return stars;
+}
+
+function starString(n) {
+  return '⭐'.repeat(n) + '☆'.repeat(3 - n);
+}
+
+// ---------- Achievements ----------
+const ACHIEVEMENT_LIST = [
+  { key: 'firstSteps', title: 'First Steps', desc: 'Complete Level 1' },
+  { key: 'coinCollector', title: 'Coin Collector', desc: 'Collect 50 coins total' },
+  { key: 'gemHunter', title: 'Gem Hunter', desc: 'Collect 10 gems total' },
+  { key: 'beetleSquasher', title: 'Beetle Squasher', desc: 'Stomp 20 enemies total' },
+  { key: 'untouchable', title: 'Untouchable', desc: 'Finish a level without losing a life' },
+  { key: 'campaignComplete', title: 'Campaign Complete', desc: 'Win the game' },
+];
+
+let achievements = {};
+let stats = { coins: 0, gems: 0, stomps: 0 };
+try {
+  const savedA = localStorage.getItem('warmWormAchievements');
+  const savedS = localStorage.getItem('warmWormStats');
+  if (savedA) achievements = JSON.parse(savedA);
+  if (savedS) stats = JSON.parse(savedS);
+} catch (e) { /* ignore */ }
+
+function saveAchievements() {
+  try { localStorage.setItem('warmWormAchievements', JSON.stringify(achievements)); } catch (e) { /* ignore */ }
+}
+function saveStats() {
+  try { localStorage.setItem('warmWormStats', JSON.stringify(stats)); } catch (e) { /* ignore */ }
+}
+
+function unlockAchievement(key) {
+  if (achievements[key]) return;
+  achievements[key] = true;
+  saveAchievements();
+  const def = ACHIEVEMENT_LIST.find(a => a.key === key);
+  if (def) showAchievementToast(def.title);
+}
+
+function checkStatAchievements() {
+  if (stats.coins >= 50) unlockAchievement('coinCollector');
+  if (stats.gems >= 10) unlockAchievement('gemHunter');
+  if (stats.stomps >= 20) unlockAchievement('beetleSquasher');
+}
+
 function checkCheckpoint() {
+  if (customLevelActive) return;
   if (!checkpointActivated && warm.x >= CHECKPOINT_X) {
     checkpointActivated = true;
     respawnPoint = { x: CHECKPOINT_POINT.x, y: CHECKPOINT_POINT.y };
     playCheckpointSound();
+    vibrate(25);
   }
 }
 
@@ -379,6 +666,10 @@ let leftPressed = false, rightPressed = false, jumpPressed = false;
 let jumpPressedPrev = false;
 let jumpsUsed = 0;
 const MAX_JUMPS = 2;
+let touchingWall = 0; // -1 = left wall, 0 = none, 1 = right wall (only meaningful while airborne)
+const WALL_JUMP_PUSH = 4;
+let duckPressed = false;
+let isDucking = false;
 
 // only resets her position/body — does NOT touch score or lives.
 // Respawns at the last checkpoint reached, or START if none yet.
@@ -387,6 +678,7 @@ function resetPosition() {
   segments = RADII.map(r => ({ x: respawnPoint.x, y: respawnPoint.y, vy: 0, r }));
   hasShield = false;
   jumpsUsed = 0;
+  touchingWall = 0;
 }
 
 // ---------- Death animation ----------
@@ -451,6 +743,7 @@ let lives = 3;
 let hasShield = false;
 let keyCount = 0;
 let gameState = 'start'; // 'start' | 'playing' | 'gameover'
+let customLevelActive = false; // true when playing a pasted level instead of the built-in one
 
 const scoreEl = document.getElementById('score');
 const livesEl = document.getElementById('lives');
@@ -460,6 +753,26 @@ const startScreen = document.getElementById('startScreen');
 const gameOverScreen = document.getElementById('gameOverScreen');
 const finalScoreLine = document.getElementById('finalScoreLine');
 const bestScoreLine = document.getElementById('bestScoreLine');
+const winScreen = document.getElementById('winScreen');
+const winScoreLine = document.getElementById('winScoreLine');
+const winBestLine = document.getElementById('winBestLine');
+const hiscoreLineWin = document.getElementById('hiscoreLineWin');
+const transitionOverlay = document.getElementById('transitionOverlay');
+const transitionText = document.getElementById('transitionText');
+const transitionStars = document.getElementById('transitionStars');
+const achievementToast = document.getElementById('achievementToast');
+let toastTimer = null;
+
+function showAchievementToast(title) {
+  achievementToast.textContent = '🏆 Achievement Unlocked: ' + title;
+  achievementToast.classList.remove('hidden');
+  // restart the pop animation each time
+  achievementToast.style.animation = 'none';
+  void achievementToast.offsetWidth;
+  achievementToast.style.animation = '';
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => achievementToast.classList.add('hidden'), 3000);
+}
 const hiscoreLine = document.getElementById('hiscoreLine');
 const hiscoreLineGameOver = document.getElementById('hiscoreLineGameOver');
 const nameInput = document.getElementById('nameInput');
@@ -551,7 +864,9 @@ function updateHud() {
 // called when she touches an enemy from the side, or falls off the map
 function loseLife() {
   lives--;
+  levelDeathOccurred = true;
   playDeathSound();
+  vibrate(120);
   updateHud();
   startDeathAnimation(() => {
     if (lives <= 0) {
@@ -568,6 +883,177 @@ function loseLife() {
   });
 }
 
+// ---------- Custom levels ----------
+// Parses a pasted ASCII level using the same tile legend the game itself
+// uses internally, plus a few single-letter entity markers. Replaces the
+// built-in level entirely; the extra systems that only make sense for the
+// hand-built default level (teleporters, checkpoint, carnivorous plants,
+// moving platforms, falling rocks) are disabled via customLevelActive.
+function loadCustomLevel(text) {
+  const rawLines = text.replace(/\r/g, '').split('\n');
+  while (rawLines.length && rawLines[0].trim() === '') rawLines.shift();
+  while (rawLines.length && rawLines[rawLines.length - 1].trim() === '') rawLines.pop();
+  if (rawLines.length === 0) return { ok: false, error: 'That looks empty — paste a level first.' };
+
+  const newRows = rawLines.length;
+  const newCols = Math.max(...rawLines.map(l => l.length));
+  if (newRows > 60 || newCols > 400) {
+    return { ok: false, error: 'That level is too large (max 60 rows, 400 columns).' };
+  }
+
+  const newGrid = Array.from({ length: newRows }, () => Array(newCols).fill('.'));
+  const newDoors = [];
+  const newEnemies = [];
+  const newCoins = [];
+  const newKeys = [];
+  const newShields = [];
+  const newPlatforms = [];
+  let startPos = null;
+  let newFinish = null;
+  const newGems = [];
+
+  for (let r = 0; r < newRows; r++) {
+    const line = rawLines[r];
+    for (let c = 0; c < newCols; c++) {
+      const ch = line[c] || '.';
+      if (ch === '#' || ch === '/' || ch === 'D' || ch === 'T' || ch === 'U') {
+        newGrid[r][c] = ch;
+      } else if (ch === 'L') {
+        newGrid[r][c] = 'L';
+        newDoors.push({ row: r, col: c });
+      } else if (ch === 'P') {
+        startPos = { x: c * TILE + TILE / 2, y: r * TILE };
+      } else if (ch === 'E') {
+        newEnemies.push(makeEnemy(c * TILE + 16, r * TILE));
+      } else if (ch === 'C') {
+        newCoins.push(makeCoin(c * TILE + 16, r * TILE + 16));
+      } else if (ch === 'G') {
+        newGems.push(makeGem(c * TILE + 16, r * TILE + 16));
+      } else if (ch === 'K') {
+        newKeys.push(makeKeyPickup(c * TILE + 16, r * TILE + 16));
+      } else if (ch === 'S') {
+        newShields.push(makeShieldPickup(c * TILE + 16, r * TILE + 16));
+      } else if (ch === 'V') {
+        // vertical elevator: rides between roughly 2.5 tiles above and
+        // below the marked spot
+        newPlatforms.push(makePlatform(c * TILE, r * TILE, 1, 'y', 2.5 * TILE, 0.02));
+      } else if (ch === 'H') {
+        // horizontal elevator: rides side to side around the marked spot
+        newPlatforms.push(makePlatform(c * TILE, r * TILE, 1, 'x', 2.5 * TILE, 0.02));
+      } else if (ch === 'F') {
+        newFinish = { x: c * TILE + TILE / 2, y: r * TILE + TILE / 2, r: 14 };
+      }
+      // anything else (space, '.', unrecognized characters) stays empty air
+    }
+  }
+
+  if (!startPos) startPos = { x: TILE + TILE / 2, y: 0 };
+
+  grid = newGrid;
+  cols = newCols;
+  rows = newRows;
+  mapWidthPx = cols * TILE;
+  mapHeightPx = rows * TILE;
+  START = startPos;
+
+  enemies = newEnemies;
+  coins = newCoins;
+  gems = newGems;
+  keyPickups = newKeys;
+  shieldPickups = newShields;
+  lockedDoorSpots = newDoors;
+  movingPlatforms = newPlatforms;
+  rocks = [];
+  finishPoint = newFinish;
+  campaignActive = false;
+
+  customLevelActive = true;
+  return { ok: true };
+}
+
+
+// ---------- Built-in 4-level campaign ----------
+const BUILTIN_LEVELS = [
+  "................................\n................................\n............................F...\n.......................S...#.#..\n......................###..#.#..\n...........................#.#..\n...........................#G#..\n.................E.........#.#..\n................####.......#.#..\n......G....................#.#..\n..TTC..##D....##...L.......#.#..\n.PTT../...H...CC.K.L...V...U.#..\n#########....###################",
+  "#........F.........#\n#############.C....#\n#..................#\n#......#############\n#..................#\n#############..E...#\n#..................#\n#......#############\n#..................#\n#############.C....#\n#..................#\n#......#############\n#..................#\n##########V##......#\n#..................#\n#......#############\n#..................#\n#############S.....#\n#..................#\n#......#############\n#..................#\n#############.C....#\n#..................#\n#P.....#############\n#..................#\n####################",
+  ".........................F.............#\n....................############.......#\n..............................C........#\n............................############\n.......................................#\n....................############.......#\n.................................E.....#\n............................############\n.......................................#\n....................############.......#\n..............................C........#\n............................############\n.......................................#\n....................############.......#\n..................................V....#\n............................############\n...........E...........................#\n..........####......############.......#\n...............................S.......#\n.....C......................############\n....####...............................#\n....................############.......#\n..............................C........#\n............................############\n.P.....................................#\n########################################",
+  "..............................\n....................F.........\n................#.............\n................#.............\n................#######.......\n................#...C.........\n................#######.......\n................#..S..........\n................#######.......\n................#...C....E....\n................##############\n..............................\n..............................\n..............................\n..............................\n..............................\n..............................\n..............................\n......####....................\n.......K.....L...V............\n..P..........L................\n##############..##############"
+];
+
+function startLevelTransition(text, duration, action, stars) {
+  levelTransition = { text, t: 0, duration, action };
+  transitionText.textContent = text;
+  transitionStars.textContent = (stars !== undefined) ? starString(stars) : '';
+  transitionOverlay.classList.remove('hidden');
+}
+
+function updateLevelTransition() {
+  const t = levelTransition;
+  t.t++;
+  if (t.t >= t.duration) {
+    transitionOverlay.classList.add('hidden');
+    const action = t.action;
+    levelTransition = null;
+    action();
+  }
+}
+
+function loadLevelByIndex(i) {
+  const result = loadCustomLevel(BUILTIN_LEVELS[i]);
+  currentLevelIndex = i;
+  campaignActive = true;
+  levelDeathOccurred = false;
+  return result;
+}
+
+function checkFinish() {
+  if (!finishPoint) return;
+  if (Math.hypot(warm.x - finishPoint.x, warm.y - finishPoint.y) < R + finishPoint.r) {
+    finishPoint = null; // consume so it can't re-trigger during the transition
+
+    let stars;
+    if (campaignActive) {
+      stars = computeStarsForCurrentLevel();
+      if (stars > (levelStars[currentLevelIndex] || 0)) {
+        levelStars[currentLevelIndex] = stars;
+        saveLevelStars();
+      }
+      if (currentLevelIndex === 0) unlockAchievement('firstSteps');
+      if (!levelDeathOccurred) unlockAchievement('untouchable');
+    }
+
+    const isLastLevel = !campaignActive || currentLevelIndex >= BUILTIN_LEVELS.length - 1;
+    if (isLastLevel) {
+      startLevelTransition('You Win!', 90, () => showWinScreen(), stars);
+    } else {
+      const nextIndex = currentLevelIndex + 1;
+      startLevelTransition('Level ' + (nextIndex + 1), 70, () => {
+        loadLevelByIndex(nextIndex);
+        respawnPoint = { x: START.x, y: START.y };
+        checkpointActivated = false;
+        resetPosition();
+      }, stars);
+    }
+  }
+}
+
+function showWinScreen() {
+  gameState = 'win';
+  const best = Math.max(score, getHighScore());
+  setHighScore(best);
+  winScoreLine.textContent = 'Score: ' + score;
+  winBestLine.textContent = 'Best: ' + best;
+  winScreen.classList.remove('hidden');
+  submitScoreToLeaderboard(score);
+  unlockAchievement('campaignComplete');
+}
+
+function startCampaign() {
+  levelDeathOccurred = false;
+  loadLevelByIndex(0);
+  startGame();
+}
+
 function startGame() {
   const typed = nameInput.value.trim();
   playerName = (typed || 'Player').slice(0, 14);
@@ -581,6 +1067,7 @@ function startGame() {
   resetPosition();
   enemies.forEach(e => { e.alive = true; e.dir = 1; });
   coins.forEach(c => { c.collected = false; c.popT = null; });
+  gems.forEach(g => { g.collected = false; g.popT = null; });
   shieldPickups.forEach(p => { p.collected = false; });
   rocks = [];
   rockSpawners.forEach(s => { s.timer = s.interval; });
@@ -590,17 +1077,40 @@ function startGame() {
   lockedDoorSpots.forEach(d => { grid[d.row][d.col] = 'L'; });
   teleportCooldown = 0;
   camScroll.active = false;
+  levelTransition = null;
+  transitionOverlay.classList.add('hidden');
   updateHud();
   startScreen.classList.add('hidden');
+  document.getElementById('hiscoreScreen').classList.add('hidden');
+  document.getElementById('customLevelScreen').classList.add('hidden');
+  document.getElementById('optionsScreen').classList.add('hidden');
+  document.getElementById('achievementsScreen').classList.add('hidden');
+  document.getElementById('pauseScreen').classList.add('hidden');
+  document.getElementById('pauseConfirm').classList.add('hidden');
+  document.getElementById('pauseMainButtons').classList.remove('hidden');
   gameOverScreen.classList.add('hidden');
+  winScreen.classList.add('hidden');
   hiscoreLine.textContent = '';
   hiscoreLineGameOver.textContent = '';
+  hiscoreLineWin.textContent = '';
   gameState = 'playing';
 }
 
 let audioCtx = null;
+let effectsGainNode = null;
+
+function vibrate(ms) {
+  if (!effectsEnabled) return;
+  if (navigator.vibrate) navigator.vibrate(ms);
+}
+
 function ensureAudio() {
-  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (!audioCtx) {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    effectsGainNode = audioCtx.createGain();
+    effectsGainNode.gain.value = effectsVolume;
+    effectsGainNode.connect(audioCtx.destination);
+  }
   if (audioCtx.state === 'suspended') audioCtx.resume();
   return audioCtx;
 }
@@ -608,6 +1118,7 @@ function ensureAudio() {
 // synthesized "nom" sound — a quick descending square-wave blip plus a
 // crunchy noise burst, no audio files needed
 function playEatSound() {
+  if (!effectsEnabled) return;
   try {
     const ctx = ensureAudio();
     const t0 = ctx.currentTime;
@@ -619,7 +1130,7 @@ function playEatSound() {
     osc.frequency.exponentialRampToValueAtTime(150, t0 + 0.12);
     gain.gain.setValueAtTime(0.18, t0);
     gain.gain.exponentialRampToValueAtTime(0.001, t0 + 0.14);
-    osc.connect(gain).connect(ctx.destination);
+    osc.connect(gain).connect(effectsGainNode);
     osc.start(t0);
     osc.stop(t0 + 0.15);
 
@@ -632,13 +1143,14 @@ function playEatSound() {
     const noiseGain = ctx.createGain();
     noiseGain.gain.setValueAtTime(0.12, t0);
     noiseGain.gain.exponentialRampToValueAtTime(0.001, t0 + 0.06);
-    noise.connect(noiseGain).connect(ctx.destination);
+    noise.connect(noiseGain).connect(effectsGainNode);
     noise.start(t0);
   } catch (e) { /* audio not available — fail silently */ }
 }
 
 // synthesized "hurt" sound — a low descending sawtooth buzz for getting hit / falling
 function playDeathSound() {
+  if (!effectsEnabled) return;
   try {
     const ctx = ensureAudio();
     const t0 = ctx.currentTime;
@@ -650,7 +1162,7 @@ function playDeathSound() {
     gain.gain.setValueAtTime(0.001, t0);
     gain.gain.linearRampToValueAtTime(0.2, t0 + 0.02);
     gain.gain.exponentialRampToValueAtTime(0.001, t0 + 0.4);
-    osc.connect(gain).connect(ctx.destination);
+    osc.connect(gain).connect(effectsGainNode);
     osc.start(t0);
     osc.stop(t0 + 0.42);
   } catch (e) { /* audio not available — fail silently */ }
@@ -658,6 +1170,7 @@ function playDeathSound() {
 
 // short bright "ding" for picking up a coin
 function playCoinSound() {
+  if (!effectsEnabled) return;
   try {
     const ctx = ensureAudio();
     const t0 = ctx.currentTime;
@@ -669,14 +1182,37 @@ function playCoinSound() {
     gain.gain.setValueAtTime(0.001, t0);
     gain.gain.linearRampToValueAtTime(0.15, t0 + 0.01);
     gain.gain.exponentialRampToValueAtTime(0.001, t0 + 0.15);
-    osc.connect(gain).connect(ctx.destination);
+    osc.connect(gain).connect(effectsGainNode);
     osc.start(t0);
     osc.stop(t0 + 0.16);
   } catch (e) { /* audio not available — fail silently */ }
 }
 
+// sparkly three-note arpeggio for the rarer, higher-value gem
+function playGemSound() {
+  if (!effectsEnabled) return;
+  try {
+    const ctx = ensureAudio();
+    const t0 = ctx.currentTime;
+    [1046, 1318, 1568].forEach((freq, i) => {
+      const t = t0 + i * 0.055;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(freq, t);
+      gain.gain.setValueAtTime(0.001, t);
+      gain.gain.linearRampToValueAtTime(0.16, t + 0.008);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.18);
+      osc.connect(gain).connect(effectsGainNode);
+      osc.start(t);
+      osc.stop(t + 0.2);
+    });
+  } catch (e) { /* audio not available — fail silently */ }
+}
+
 // two-note rising chime for gaining a shield
 function playShieldUpSound() {
+  if (!effectsEnabled) return;
   try {
     const ctx = ensureAudio();
     const t0 = ctx.currentTime;
@@ -689,7 +1225,7 @@ function playShieldUpSound() {
       gain.gain.setValueAtTime(0.001, t);
       gain.gain.linearRampToValueAtTime(0.16, t + 0.015);
       gain.gain.exponentialRampToValueAtTime(0.001, t + 0.2);
-      osc.connect(gain).connect(ctx.destination);
+      osc.connect(gain).connect(effectsGainNode);
       osc.start(t);
       osc.stop(t + 0.22);
     });
@@ -698,6 +1234,7 @@ function playShieldUpSound() {
 
 // glassy "pop" for the shield absorbing a hit
 function playShieldBreakSound() {
+  if (!effectsEnabled) return;
   try {
     const ctx = ensureAudio();
     const t0 = ctx.currentTime;
@@ -709,7 +1246,7 @@ function playShieldBreakSound() {
     gain.gain.setValueAtTime(0.001, t0);
     gain.gain.linearRampToValueAtTime(0.18, t0 + 0.01);
     gain.gain.exponentialRampToValueAtTime(0.001, t0 + 0.2);
-    osc.connect(gain).connect(ctx.destination);
+    osc.connect(gain).connect(effectsGainNode);
     osc.start(t0);
     osc.stop(t0 + 0.22);
   } catch (e) { /* audio not available — fail silently */ }
@@ -717,6 +1254,7 @@ function playShieldBreakSound() {
 
 // pleasant ascending three-note chime for reaching a checkpoint
 function playCheckpointSound() {
+  if (!effectsEnabled) return;
   try {
     const ctx = ensureAudio();
     const t0 = ctx.currentTime;
@@ -729,7 +1267,7 @@ function playCheckpointSound() {
       gain.gain.setValueAtTime(0.001, t);
       gain.gain.linearRampToValueAtTime(0.15, t + 0.015);
       gain.gain.exponentialRampToValueAtTime(0.001, t + 0.25);
-      osc.connect(gain).connect(ctx.destination);
+      osc.connect(gain).connect(effectsGainNode);
       osc.start(t);
       osc.stop(t + 0.27);
     });
@@ -738,6 +1276,7 @@ function playCheckpointSound() {
 
 // bright little metallic jingle for picking up a key
 function playKeySound() {
+  if (!effectsEnabled) return;
   try {
     const ctx = ensureAudio();
     const t0 = ctx.currentTime;
@@ -750,7 +1289,7 @@ function playKeySound() {
       gain.gain.setValueAtTime(0.001, t);
       gain.gain.linearRampToValueAtTime(0.12, t + 0.01);
       gain.gain.exponentialRampToValueAtTime(0.001, t + 0.12);
-      osc.connect(gain).connect(ctx.destination);
+      osc.connect(gain).connect(effectsGainNode);
       osc.start(t);
       osc.stop(t + 0.13);
     });
@@ -759,6 +1298,7 @@ function playKeySound() {
 
 // low thunk-then-creak for a door unlocking
 function playUnlockSound() {
+  if (!effectsEnabled) return;
   try {
     const ctx = ensureAudio();
     const t0 = ctx.currentTime;
@@ -770,7 +1310,7 @@ function playUnlockSound() {
     gain.gain.setValueAtTime(0.001, t0);
     gain.gain.linearRampToValueAtTime(0.2, t0 + 0.02);
     gain.gain.exponentialRampToValueAtTime(0.001, t0 + 0.3);
-    osc.connect(gain).connect(ctx.destination);
+    osc.connect(gain).connect(effectsGainNode);
     osc.start(t0);
     osc.stop(t0 + 0.32);
   } catch (e) { /* audio not available — fail silently */ }
@@ -778,6 +1318,7 @@ function playUnlockSound() {
 
 // sci-fi sweeping whoosh for teleporting
 function playTeleportSound() {
+  if (!effectsEnabled) return;
   try {
     const ctx = ensureAudio();
     const t0 = ctx.currentTime;
@@ -790,7 +1331,7 @@ function playTeleportSound() {
     gain.gain.setValueAtTime(0.001, t0);
     gain.gain.linearRampToValueAtTime(0.14, t0 + 0.05);
     gain.gain.exponentialRampToValueAtTime(0.001, t0 + 0.42);
-    osc.connect(gain).connect(ctx.destination);
+    osc.connect(gain).connect(effectsGainNode);
     osc.start(t0);
     osc.stop(t0 + 0.44);
   } catch (e) { /* audio not available — fail silently */ }
@@ -829,7 +1370,7 @@ function makeEnemy(x, y) {
   return { x, y, vy: 0, dir: 1, r: ENEMY_R, alive: true, frame: 0, animT: 0 };
 }
 
-const enemies = [
+let enemies = [
   makeEnemy(6 * TILE + 16, 2 * TILE),   // lands on the platform at row 8, col 5-7
   makeEnemy(41 * TILE + 16, 2 * TILE),  // platform at row 9, col 40-44
   makeEnemy(24 * TILE + 16, 2 * TILE),  // the slope plateau
@@ -895,15 +1436,23 @@ function checkEnemyCollisions() {
         e.alive = false;
         warm.vy = JUMP_V * 0.55;
         score++;
+        stats.stomps++;
+        saveStats();
+        checkStatAchievements();
         updateHud();
         playEatSound();
+        vibrate(20);
       } else if (hasShield) {
         // the shield absorbs one side hit AND takes the enemy out with it
         hasShield = false;
         e.alive = false;
         score++;
+        stats.stomps++;
+        saveStats();
+        checkStatAchievements();
         updateHud();
         playShieldBreakSound();
+        vibrate(40);
         warm.vx = (warm.x < e.x ? -1 : 1) * 4; // small knockback
       } else {
         loseLife();
@@ -925,7 +1474,7 @@ function makePlatform(baseX, baseY, wTiles, axis, amplitude, speed) {
   };
 }
 
-const movingPlatforms = [
+let movingPlatforms = [
   makePlatform(95.5 * TILE, 11 * TILE, 2, 'x', 2.3 * TILE, 0.02),   // bridges the gap at col 95-98
   makePlatform(131.5 * TILE, 8 * TILE, 2, 'y', 2.5 * TILE, 0.018),  // ferries up to the plateau at row 6
 ];
@@ -980,11 +1529,13 @@ const rockSpawners = [
 let rocks = [];
 
 function updateRocks() {
-  for (const s of rockSpawners) {
-    s.timer--;
-    if (s.timer <= 0) {
-      s.timer = s.interval;
-      rocks.push({ x: s.x, y: -20, vy: 0, r: ROCK_R, alive: true, spin: (Math.random() - 0.5) * 0.2 });
+  if (!customLevelActive) {
+    for (const s of rockSpawners) {
+      s.timer--;
+      if (s.timer <= 0) {
+        s.timer = s.interval;
+        rocks.push({ x: s.x, y: -20, vy: 0, r: ROCK_R, alive: true, spin: (Math.random() - 0.5) * 0.2 });
+      }
     }
   }
 
@@ -1013,6 +1564,7 @@ function updateRocks() {
         hasShield = false;
         updateHud();
         playShieldBreakSound();
+        vibrate(40);
       } else {
         loseLife();
       }
@@ -1079,6 +1631,7 @@ function updatePlant(p) {
         hasShield = false;
         updateHud();
         playShieldBreakSound();
+        vibrate(40);
         warm.vy = JUMP_V * 0.4;
       } else {
         loseLife();
@@ -1090,8 +1643,10 @@ function updatePlant(p) {
 // ---------- Collectibles: coins (score) and shield power-ups ----------
 function makeCoin(x, y) { return { x, y, r: 6, collected: false, popT: null }; }
 function makeShieldPickup(x, y) { return { x, y, r: 10, collected: false }; }
+function makeGem(x, y) { return { x, y, r: 8, collected: false, popT: null }; }
+const GEM_VALUE = 5;
 
-const coins = [
+let coins = [
   makeCoin(9 * TILE, 4 * TILE), makeCoin(26 * TILE, 3 * TILE), makeCoin(43 * TILE, 6 * TILE),
   makeCoin(58 * TILE, 5 * TILE), makeCoin(66 * TILE, 4 * TILE), makeCoin(82 * TILE, 3 * TILE),
   makeCoin(96 * TILE, 9 * TILE), makeCoin(101 * TILE, 6 * TILE), makeCoin(109 * TILE, 4 * TILE),
@@ -1100,14 +1655,20 @@ const coins = [
   makeCoin(173 * TILE, 7 * TILE), makeCoin(180 * TILE, 3 * TILE),
 ];
 
-const shieldPickups = [
+let gems = [
+  makeGem(28 * TILE, 8 * TILE),
+  makeGem(102 * TILE, 3.5 * TILE),
+  makeGem(162 * TILE, 4 * TILE),
+];
+
+let shieldPickups = [
   makeShieldPickup(3 * TILE, 9 * TILE),
   makeShieldPickup(92 * TILE, 9.5 * TILE),
   makeShieldPickup(159 * TILE, 9 * TILE),
 ];
 
 function makeKeyPickup(x, y) { return { x, y, r: 9, collected: false }; }
-const keyPickups = [
+let keyPickups = [
   makeKeyPickup(50 * TILE, 9.5 * TILE),   // before the door at col 63
   makeKeyPickup(133 * TILE, 5.5 * TILE),  // up on the plateau, before the door at col 150
 ];
@@ -1125,8 +1686,29 @@ function updateCollectibles() {
       c.collected = true;
       c.popT = 0;
       score++;
+      stats.coins++;
+      saveStats();
+      checkStatAchievements();
       updateHud();
       playCoinSound();
+      vibrate(12);
+    }
+  }
+  for (const g of gems) {
+    if (g.collected) {
+      if (g.popT !== null && g.popT < COIN_POP_DURATION) g.popT++;
+      continue;
+    }
+    if (Math.hypot(warm.x - g.x, warm.y - g.y) < R + g.r) {
+      g.collected = true;
+      g.popT = 0;
+      score += GEM_VALUE;
+      stats.gems++;
+      saveStats();
+      checkStatAchievements();
+      updateHud();
+      playGemSound();
+      vibrate(25);
     }
   }
   for (const p of shieldPickups) {
@@ -1136,6 +1718,7 @@ function updateCollectibles() {
       hasShield = true;
       updateHud();
       playShieldUpSound();
+      vibrate(30);
     }
   }
   for (const k of keyPickups) {
@@ -1145,6 +1728,7 @@ function updateCollectibles() {
       keyCount++;
       updateHud();
       playKeySound();
+      vibrate(20);
     }
   }
 }
@@ -1177,6 +1761,7 @@ function triggerTeleport(dest) {
   camScroll.toX = clampedCamX(dest.x);
   camScroll.t = 0;
   playTeleportSound();
+  vibrate(35);
 }
 
 function updateTeleporters() {
@@ -1189,6 +1774,10 @@ function updateTeleporters() {
 }
 
 function update() {
+  // between levels, or on winning: freeze everything and just run the
+  // transition-banner timer until it hands off to the next level/screen
+  if (levelTransition) { updateLevelTransition(); return; }
+
   // while she's falling apart, freeze everything else and just run the
   // debris animation until it hands off to whatever happens next
   if (deathAnim) { updateDeathAnimation(); return; }
@@ -1209,12 +1798,29 @@ function update() {
   if (warm.grounded) jumpsUsed = 0;
 
   const jumpJustPressed = jumpPressed && !jumpPressedPrev;
-  if (jumpJustPressed && jumpsUsed < MAX_JUMPS) {
-    warm.vy = jumpsUsed === 0 ? JUMP_V : JUMP_V * 0.85; // second jump a touch weaker
-    warm.grounded = false;
-    jumpsUsed++;
+  if (jumpJustPressed) {
+    if (warm.grounded) {
+      warm.vy = JUMP_V;
+      jumpsUsed = 1;
+      warm.grounded = false;
+    } else if (touchingWall !== 0) {
+      // wall jump: pushes off the wall and refreshes one air jump
+      warm.vy = JUMP_V;
+      warm.vx = -touchingWall * WALL_JUMP_PUSH;
+      jumpsUsed = 1;
+      warm.grounded = false;
+      touchingWall = 0;
+    } else if (jumpsUsed < MAX_JUMPS) {
+      warm.vy = JUMP_V * 0.85; // air jump a touch weaker
+      jumpsUsed++;
+    }
   }
   jumpPressedPrev = jumpPressed;
+
+  // ducking: shrinks her effective collision size so she can fit under
+  // low gaps. Only while grounded — no ducking mid-air.
+  isDucking = duckPressed && warm.grounded;
+  const R_EFF = isDucking ? R * 0.55 : R;
 
   // --- horizontal move + collide (only the head collides with tiles) ---
   // While she's standing on a ramp, skip the ordinary wall check: her y
@@ -1224,18 +1830,27 @@ function update() {
   // vertical-collision code below is what actually places her correctly.
   const wasOnRamp = rampSurfaceY(warm.x) !== null;
   warm.x += warm.vx;
+  touchingWall = 0;
   if (!wasOnRamp) {
-    const topRow = Math.floor((warm.y - R + 2) / TILE);
-    const botRow = Math.floor((warm.y + R - 2) / TILE);
+    const topRow = Math.floor((warm.y - R_EFF + 2) / TILE);
+    const botRow = Math.floor((warm.y + R_EFF - 2) / TILE);
     if (warm.vx > 0) {
-      const col = Math.floor((warm.x + R) / TILE);
+      const col = Math.floor((warm.x + R_EFF) / TILE);
       for (let r = topRow; r <= botRow; r++) {
-        if (solidAt(col, r) && !tryOpenDoor(col, r)) { warm.x = col * TILE - R; break; }
+        if (blocksHorizontally(col, r) && !tryOpenDoor(col, r)) {
+          warm.x = col * TILE - R_EFF;
+          if (!warm.grounded) touchingWall = 1;
+          break;
+        }
       }
     } else if (warm.vx < 0) {
-      const col = Math.floor((warm.x - R) / TILE);
+      const col = Math.floor((warm.x - R_EFF) / TILE);
       for (let r = topRow; r <= botRow; r++) {
-        if (solidAt(col, r) && !tryOpenDoor(col, r)) { warm.x = (col + 1) * TILE + R; break; }
+        if (blocksHorizontally(col, r) && !tryOpenDoor(col, r)) {
+          warm.x = (col + 1) * TILE + R_EFF;
+          if (!warm.grounded) touchingWall = -1;
+          break;
+        }
       }
     }
   }
@@ -1277,18 +1892,19 @@ function update() {
   }
 
   // fell off the map
-  if (warm.y > canvas.height + 150) loseLife();
+  if (warm.y > mapHeightPx + 150) loseLife();
 
   updateMovingPlatforms();
   collideMovingPlatforms();
   updateRocks();
-  plants.forEach(updatePlant);
+  if (!customLevelActive) plants.forEach(updatePlant);
 
   enemies.forEach(updateEnemy);
   checkEnemyCollisions();
   updateCollectibles();
   checkCheckpoint();
-  updateTeleporters();
+  if (!customLevelActive) updateTeleporters();
+  checkFinish();
 
   // --- body chain ---
   segments[0].x = warm.x;
@@ -1344,9 +1960,11 @@ function update() {
 function drawTiles() {
   const firstCol = Math.max(0, Math.floor(cam.x / TILE) - 1);
   const lastCol = Math.min(cols - 1, Math.ceil((cam.x + canvas.width) / TILE) + 1);
+  const firstRow = Math.max(0, Math.floor(cam.y / TILE) - 1);
+  const lastRow = Math.min(rows - 1, Math.ceil((cam.y + canvas.height) / TILE) + 1);
 
   // pass 1: side/front faces (drawn first so the top faces sit above them)
-  for (let r = 0; r < rows; r++) {
+  for (let r = firstRow; r <= lastRow; r++) {
     for (let c = firstCol; c <= lastCol; c++) {
       if (grid[r][c] !== '#') continue;
       const isGrass = r === 0 || grid[r - 1][c] !== '#';
@@ -1378,7 +1996,7 @@ function drawTiles() {
   }
 
   // pass 2: top faces
-  for (let r = 0; r < rows; r++) {
+  for (let r = firstRow; r <= lastRow; r++) {
     for (let c = firstCol; c <= lastCol; c++) {
       if (grid[r][c] !== '#') continue;
       const isGrass = r === 0 || grid[r - 1][c] !== '#';
@@ -1399,7 +2017,9 @@ function drawTiles() {
 function drawSlopes() {
   const firstCol = Math.max(0, Math.floor(cam.x / TILE) - 1);
   const lastCol = Math.min(cols - 1, Math.ceil((cam.x + canvas.width) / TILE) + 1);
-  for (let r = 0; r < rows; r++) {
+  const firstRow = Math.max(0, Math.floor(cam.y / TILE) - 1);
+  const lastRow = Math.min(rows - 1, Math.ceil((cam.y + canvas.height) / TILE) + 1);
+  for (let r = firstRow; r <= lastRow; r++) {
     for (let c = firstCol; c <= lastCol; c++) {
       const x = c * TILE, y = r * TILE;
       if (grid[r][c] === '/') {
@@ -1455,10 +2075,65 @@ function drawCheckpoint() {
   }
 }
 
-function drawDoors() {
+function drawFinish() {
+  if (!finishPoint) return;
+  const x = finishPoint.x, y = finishPoint.y;
+  const t = platformTimer * 0.05;
+  ctx.beginPath();
+  ctx.arc(x, y, finishPoint.r + 4 + Math.sin(t) * 2, 0, Math.PI * 2);
+  ctx.strokeStyle = 'rgba(255,211,90,0.5)';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  ctx.strokeStyle = '#c98a12';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(x, y + finishPoint.r);
+  ctx.lineTo(x, y - finishPoint.r - 14);
+  ctx.stroke();
+  ctx.fillStyle = '#ffd35a';
+  ctx.beginPath();
+  ctx.moveTo(x, y - finishPoint.r - 14);
+  ctx.lineTo(x + 16, y - finishPoint.r - 8);
+  ctx.lineTo(x, y - finishPoint.r - 2);
+  ctx.closePath();
+  ctx.fill();
+}
+
+function drawDuckTiles() {
   const firstCol = Math.max(0, Math.floor(cam.x / TILE) - 1);
   const lastCol = Math.min(cols - 1, Math.ceil((cam.x + canvas.width) / TILE) + 1);
   for (let r = 0; r < rows; r++) {
+    for (let c = firstCol; c <= lastCol; c++) {
+      if (grid[r][c] !== 'U') continue;
+      const x = c * TILE, y = r * TILE;
+      const h = TILE / 2; // only the top half of the cell is solid
+      ctx.fillStyle = '#7a6a72';
+      ctx.fillRect(x, y, TILE, h);
+      ctx.strokeStyle = '#453b40';
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(x, y, TILE, h);
+      // jagged spikes hanging down to make the low clearance obvious
+      ctx.fillStyle = '#5c4f56';
+      const teeth = 3;
+      const tw = TILE / teeth;
+      for (let i = 0; i < teeth; i++) {
+        ctx.beginPath();
+        ctx.moveTo(x + i * tw, y + h);
+        ctx.lineTo(x + i * tw + tw / 2, y + h + 7);
+        ctx.lineTo(x + i * tw + tw, y + h);
+        ctx.closePath();
+        ctx.fill();
+      }
+    }
+  }
+}
+
+function drawDoors() {
+  const firstCol = Math.max(0, Math.floor(cam.x / TILE) - 1);
+  const lastCol = Math.min(cols - 1, Math.ceil((cam.x + canvas.width) / TILE) + 1);
+  const firstRow = Math.max(0, Math.floor(cam.y / TILE) - 1);
+  const lastRow = Math.min(rows - 1, Math.ceil((cam.y + canvas.height) / TILE) + 1);
+  for (let r = firstRow; r <= lastRow; r++) {
     for (let c = firstCol; c <= lastCol; c++) {
       if (grid[r][c] !== 'L') continue;
       const x = c * TILE, y = r * TILE;
@@ -1627,6 +2302,47 @@ function drawCollectibles() {
       ctx.restore();
     }
   }
+  for (const g of gems) {
+    const rot = platformTimer * 0.04;
+    if (!g.collected) {
+      ctx.save();
+      ctx.translate(g.x, g.y);
+      ctx.rotate(rot);
+      ctx.beginPath();
+      ctx.moveTo(0, -g.r); ctx.lineTo(g.r * 0.75, 0);
+      ctx.lineTo(0, g.r); ctx.lineTo(-g.r * 0.75, 0);
+      ctx.closePath();
+      const grad = ctx.createLinearGradient(0, -g.r, 0, g.r);
+      grad.addColorStop(0, '#bdf3ff');
+      grad.addColorStop(0.5, '#4fc9e8');
+      grad.addColorStop(1, '#1f7fa3');
+      ctx.fillStyle = grad;
+      ctx.fill();
+      ctx.strokeStyle = '#eafeff';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(0, -g.r * 0.6); ctx.lineTo(g.r * 0.22, 0); ctx.lineTo(0, g.r * 0.6);
+      ctx.strokeStyle = 'rgba(255,255,255,0.85)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      ctx.restore();
+    } else if (g.popT !== null && g.popT < COIN_POP_DURATION) {
+      const frac = g.popT / COIN_POP_DURATION;
+      const y = g.y - frac * COIN_POP_RISE;
+      ctx.save();
+      ctx.globalAlpha = 1 - frac;
+      ctx.translate(g.x, y);
+      ctx.rotate(rot);
+      ctx.beginPath();
+      ctx.moveTo(0, -g.r); ctx.lineTo(g.r * 0.75, 0);
+      ctx.lineTo(0, g.r); ctx.lineTo(-g.r * 0.75, 0);
+      ctx.closePath();
+      ctx.fillStyle = '#4fc9e8';
+      ctx.fill();
+      ctx.restore();
+    }
+  }
   for (const p of shieldPickups) {
     if (p.collected) continue;
     ctx.beginPath();
@@ -1676,6 +2392,7 @@ function drawWarm() {
 
   // head
   const head = segments[0];
+  const squish = isDucking ? 0.6 : 1;
 
   if (hasShield) {
     ctx.beginPath();
@@ -1685,8 +2402,11 @@ function drawWarm() {
     ctx.stroke();
   }
 
+  ctx.save();
+  ctx.translate(head.x, head.y + head.r * (1 - squish));
+  ctx.scale(1, squish);
   ctx.beginPath();
-  ctx.arc(head.x, head.y, head.r, 0, Math.PI * 2);
+  ctx.arc(0, 0, head.r, 0, Math.PI * 2);
   ctx.fillStyle = '#ff8a3d';
   ctx.fill();
   ctx.strokeStyle = 'rgba(120,50,10,0.4)';
@@ -1695,10 +2415,11 @@ function drawWarm() {
 
   // face — flips with direction
   const dir = warm.vx < 0 ? -1 : 1;
-  const ex = head.x + dir * 4;
+  const ex = dir * 4;
   ctx.fillStyle = '#2b1a10';
-  ctx.beginPath(); ctx.arc(ex - dir, head.y - 3, 2, 0, Math.PI * 2); ctx.fill();
-  ctx.beginPath(); ctx.arc(ex + dir * 4, head.y - 3, 2, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(ex - dir, -3, 2, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(ex + dir * 4, -3, 2, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
 }
 
 // Drawn AFTER the worm, so these tiles overlap/cover her — the illusion of
@@ -1707,7 +2428,9 @@ function drawWarm() {
 function drawTunnels() {
   const firstCol = Math.max(0, Math.floor(cam.x / TILE) - 1);
   const lastCol = Math.min(cols - 1, Math.ceil((cam.x + canvas.width) / TILE) + 1);
-  for (let r = 0; r < rows; r++) {
+  const firstRow = Math.max(0, Math.floor(cam.y / TILE) - 1);
+  const lastRow = Math.min(rows - 1, Math.ceil((cam.y + canvas.height) / TILE) + 1);
+  for (let r = firstRow; r <= lastRow; r++) {
     for (let c = firstCol; c <= lastCol; c++) {
       if (grid[r][c] !== 'T') continue;
       const x = c * TILE, y = r * TILE;
@@ -1770,19 +2493,21 @@ function loop(now) {
     steps++;
   }
 
-  ctx.fillStyle = '#cfe8ff';
+  ctx.fillStyle = '#6bb8e8';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   ctx.save();
   ctx.translate(-cam.x, -cam.y);
   drawTiles();
   drawSlopes();
   drawDoors();
-  drawTeleporters();
-  drawCheckpoint();
+  drawDuckTiles();
+  if (!customLevelActive) drawTeleporters();
+  if (!customLevelActive) drawCheckpoint();
+  drawFinish();
   drawMovingPlatforms();
   drawCollectibles();
   drawRocks();
-  drawPlants();
+  if (!customLevelActive) drawPlants();
   drawEnemies();
   if (deathAnim) drawDeathAnimation(); else drawWarm();
   drawTunnels();
@@ -1795,11 +2520,13 @@ window.addEventListener('keydown', (e) => {
   if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') leftPressed = true;
   if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') rightPressed = true;
   if (e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W' || e.key === ' ') jumpPressed = true;
+  if (e.key === 'ArrowDown' || e.key === 's' || e.key === 'S') duckPressed = true;
 });
 window.addEventListener('keyup', (e) => {
   if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') leftPressed = false;
   if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') rightPressed = false;
   if (e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W' || e.key === ' ') jumpPressed = false;
+  if (e.key === 'ArrowDown' || e.key === 's' || e.key === 'S') duckPressed = false;
 });
 
 // ---------- Input: touch/mouse buttons ----------
@@ -1809,16 +2536,110 @@ function bindHold(el, onDown, onUp) {
   el.addEventListener('pointerleave', () => onUp());
   el.addEventListener('pointercancel', () => onUp());
 }
-bindHold(document.getElementById('leftBtn'), () => leftPressed = true, () => leftPressed = false);
-bindHold(document.getElementById('rightBtn'), () => rightPressed = true, () => rightPressed = false);
+
+// Joystick: the knob follows your finger within the base (clamped to a max
+// radius), and direction is read from which side of center it's sitting on.
+// Sliding smoothly between left and right just works, since it's one
+// continuous drag rather than separate buttons.
+const joystickBase = document.getElementById('joystickBase');
+const joystickKnob = document.getElementById('joystickKnob');
+let joyPointerId = null;
+const JOY_DEADZONE = 2; // px of knob travel before it counts as a direction
+
+function updateJoystick(clientX, clientY) {
+  const rect = joystickBase.getBoundingClientRect();
+  const cx = rect.left + rect.width / 2;
+  const cy = rect.top + rect.height / 2;
+  let dx = clientX - cx;
+  let dy = clientY - cy;
+  const dist = Math.hypot(dx, dy);
+  const maxDist = rect.width / 2 - joystickKnob.offsetWidth / 2;
+  if (dist > maxDist) {
+    const scale = maxDist / dist;
+    dx *= scale;
+    dy *= scale;
+  }
+  joystickKnob.style.transform = `translate(${dx}px, ${dy}px)`;
+
+  if (dx < -JOY_DEADZONE) { leftPressed = true; rightPressed = false; }
+  else if (dx > JOY_DEADZONE) { rightPressed = true; leftPressed = false; }
+  else { leftPressed = false; rightPressed = false; }
+
+  duckPressed = dy > 22; // pushing the stick down ducks her
+}
+
+function resetJoystick() {
+  joystickKnob.classList.remove('dragging');
+  joystickKnob.style.transform = 'translate(0, 0)';
+  leftPressed = false;
+  rightPressed = false;
+  duckPressed = false;
+}
+
+joystickBase.addEventListener('pointerdown', (e) => {
+  e.preventDefault();
+  joyPointerId = e.pointerId;
+  joystickBase.setPointerCapture(e.pointerId);
+  joystickKnob.classList.add('dragging');
+  updateJoystick(e.clientX, e.clientY);
+});
+joystickBase.addEventListener('pointermove', (e) => {
+  if (e.pointerId !== joyPointerId) return;
+  updateJoystick(e.clientX, e.clientY);
+});
+function endJoystickDrag(e) {
+  if (e.pointerId !== joyPointerId) return;
+  joyPointerId = null;
+  resetJoystick();
+}
+joystickBase.addEventListener('pointerup', endJoystickDrag);
+joystickBase.addEventListener('pointercancel', endJoystickDrag);
+
 bindHold(document.getElementById('jumpBtn'), () => jumpPressed = true, () => jumpPressed = false);
 
 // browsers require a real user gesture before audio can play — this
 // primes the AudioContext the first time she taps/presses anything
 const bgMusic = document.getElementById('bgMusic');
-bgMusic.volume = 0.16;
+
+// ---------- Sound settings (persisted) ----------
+let musicEnabled = true;
+let effectsEnabled = true;
+let musicVolume = 0.16;
+let effectsVolume = 1.0;
+try {
+  const savedMusic = localStorage.getItem('warmWormMusicEnabled');
+  const savedFx = localStorage.getItem('warmWormEffectsEnabled');
+  const savedMV = localStorage.getItem('warmWormMusicVolume');
+  const savedEV = localStorage.getItem('warmWormEffectsVolume');
+  if (savedMusic !== null) musicEnabled = savedMusic === 'true';
+  if (savedFx !== null) effectsEnabled = savedFx === 'true';
+  if (savedMV !== null) musicVolume = parseFloat(savedMV);
+  if (savedEV !== null) effectsVolume = parseFloat(savedEV);
+} catch (e) { /* ignore */ }
+bgMusic.volume = musicVolume;
+
+function setMusicEnabled(on) {
+  musicEnabled = on;
+  try { localStorage.setItem('warmWormMusicEnabled', String(on)); } catch (e) { /* ignore */ }
+  if (on) startMusic(); else bgMusic.pause();
+}
+function setEffectsEnabled(on) {
+  effectsEnabled = on;
+  try { localStorage.setItem('warmWormEffectsEnabled', String(on)); } catch (e) { /* ignore */ }
+}
+function setMusicVolume(v) {
+  musicVolume = v;
+  bgMusic.volume = v;
+  try { localStorage.setItem('warmWormMusicVolume', String(v)); } catch (e) { /* ignore */ }
+}
+function setEffectsVolume(v) {
+  effectsVolume = v;
+  if (effectsGainNode) effectsGainNode.gain.value = v;
+  try { localStorage.setItem('warmWormEffectsVolume', String(v)); } catch (e) { /* ignore */ }
+}
 
 function startMusic() {
+  if (!musicEnabled) return;
   if (!bgMusic.paused) return; // already playing, nothing to do
   bgMusic.play()
     .then(() => console.log('bgMusic: playing'))
@@ -1835,15 +2656,179 @@ window.addEventListener('keydown', unlockAudioOnce);
 window.addEventListener('pointerdown', unlockAudioOnce);
 
 // ---------- Start / game-over screen buttons ----------
+// Snapshot of the built-in level, taken once at load, so we can restore it
+// after the player has loaded a custom level and wants to go back.
+const defaultLevelSnapshot = {
+  grid: grid.map(row => row.slice()),
+  cols, rows, mapWidthPx, mapHeightPx,
+  START: { x: START.x, y: START.y },
+  enemies: enemies.map(e => ({ ...e })),
+  movingPlatforms: movingPlatforms.map(p => ({ ...p })),
+  coins: coins.map(c => ({ ...c })),
+  shieldPickups: shieldPickups.map(p => ({ ...p })),
+  keyPickups: keyPickups.map(k => ({ ...k })),
+  lockedDoorSpots: lockedDoorSpots.map(d => ({ ...d })),
+};
+
+function restoreDefaultLevel() {
+  grid = defaultLevelSnapshot.grid.map(row => row.slice());
+  cols = defaultLevelSnapshot.cols;
+  rows = defaultLevelSnapshot.rows;
+  mapWidthPx = defaultLevelSnapshot.mapWidthPx;
+  mapHeightPx = defaultLevelSnapshot.mapHeightPx;
+  START = { x: defaultLevelSnapshot.START.x, y: defaultLevelSnapshot.START.y };
+  enemies = defaultLevelSnapshot.enemies.map(e => ({ ...e }));
+  movingPlatforms = defaultLevelSnapshot.movingPlatforms.map(p => ({ ...p }));
+  coins = defaultLevelSnapshot.coins.map(c => ({ ...c }));
+  shieldPickups = defaultLevelSnapshot.shieldPickups.map(p => ({ ...p }));
+  keyPickups = defaultLevelSnapshot.keyPickups.map(k => ({ ...k }));
+  lockedDoorSpots = defaultLevelSnapshot.lockedDoorSpots.map(d => ({ ...d }));
+  customLevelActive = false;
+}
+
 document.getElementById('playBtn').addEventListener('click', () => {
   ensureAudio();
   startMusic();
-  startGame();
+  startCampaign();
 });
 document.getElementById('againBtn').addEventListener('click', () => {
   ensureAudio();
   startMusic();
+  startCampaign();
+});
+document.getElementById('winAgainBtn').addEventListener('click', () => {
+  ensureAudio();
+  startMusic();
+  winScreen.classList.add('hidden');
+  startCampaign();
+});
+
+const pauseScreen = document.getElementById('pauseScreen');
+const pauseMainButtons = document.getElementById('pauseMainButtons');
+const pauseConfirm = document.getElementById('pauseConfirm');
+
+document.getElementById('pauseBtn').addEventListener('click', () => {
+  if (gameState !== 'playing') return;
+  gameState = 'paused';
+  pauseMainButtons.classList.remove('hidden');
+  pauseConfirm.classList.add('hidden');
+  pauseScreen.classList.remove('hidden');
+});
+document.getElementById('resumeBtn').addEventListener('click', () => {
+  pauseScreen.classList.add('hidden');
+  gameState = 'playing';
+});
+document.getElementById('restartBtn').addEventListener('click', () => {
+  pauseMainButtons.classList.add('hidden');
+  pauseConfirm.classList.remove('hidden');
+});
+document.getElementById('confirmMenuYes').addEventListener('click', () => {
+  pauseScreen.classList.add('hidden');
+  gameState = 'start';
+  refreshStarsSummary();
+  goToScreen(startScreen2);
+});
+document.getElementById('confirmMenuNo').addEventListener('click', () => {
+  pauseConfirm.classList.add('hidden');
+  pauseMainButtons.classList.remove('hidden');
+});
+
+const startScreen2 = startScreen; // alias for clarity below
+const hiscoreScreen = document.getElementById('hiscoreScreen');
+const customLevelScreen = document.getElementById('customLevelScreen');
+const optionsScreen = document.getElementById('optionsScreen');
+const achievementsScreen = document.getElementById('achievementsScreen');
+
+function goToScreen(screen) {
+  [startScreen2, hiscoreScreen, customLevelScreen, optionsScreen, achievementsScreen].forEach(s => s.classList.add('hidden'));
+  screen.classList.remove('hidden');
+}
+
+document.querySelectorAll('.backBtn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    goToScreen(document.getElementById(btn.dataset.backTo));
+  });
+});
+
+const customLevelInput = document.getElementById('customLevelInput');
+const customLevelMsg = document.getElementById('customLevelMsg');
+
+const achievementsList = document.getElementById('achievementsList');
+function renderAchievementsList() {
+  achievementsList.innerHTML = ACHIEVEMENT_LIST.map(a => {
+    const unlocked = !!achievements[a.key];
+    return '<div class="achievementRow' + (unlocked ? ' unlocked' : '') + '">' +
+      '<span class="achievementIcon">' + (unlocked ? '🏆' : '🔒') + '</span>' +
+      '<span class="achievementText"><b>' + escapeHtml(a.title) + '</b><br>' + escapeHtml(a.desc) + '</span>' +
+      '</div>';
+  }).join('');
+}
+document.getElementById('achievementsBtn').addEventListener('click', () => {
+  renderAchievementsList();
+  goToScreen(achievementsScreen);
+});
+
+const starsSummary = document.getElementById('starsSummary');
+function refreshStarsSummary() {
+  const total = levelStars.reduce((a, b) => a + b, 0);
+  starsSummary.textContent = total > 0 ? ('⭐ Stars: ' + total + ' / ' + (BUILTIN_LEVELS.length * 3)) : '';
+}
+refreshStarsSummary();
+
+document.getElementById('customLevelBtn').addEventListener('click', () => {
+  goToScreen(customLevelScreen);
+});
+
+document.getElementById('playCustomBtn').addEventListener('click', () => {
+  ensureAudio();
+  startMusic();
+  const result = loadCustomLevel(customLevelInput.value);
+  if (!result.ok) {
+    customLevelMsg.textContent = result.error;
+    return;
+  }
+  customLevelMsg.textContent = '';
   startGame();
+});
+
+const musicToggleBtn = document.getElementById('musicToggleBtn');
+const effectsToggleBtn = document.getElementById('effectsToggleBtn');
+const musicVolumeSlider = document.getElementById('musicVolumeSlider');
+const effectsVolumeSlider = document.getElementById('effectsVolumeSlider');
+
+function refreshToggleButtons() {
+  musicToggleBtn.textContent = musicEnabled ? 'ON' : 'OFF';
+  musicToggleBtn.classList.toggle('off', !musicEnabled);
+  effectsToggleBtn.textContent = effectsEnabled ? 'ON' : 'OFF';
+  effectsToggleBtn.classList.toggle('off', !effectsEnabled);
+}
+refreshToggleButtons();
+musicVolumeSlider.value = Math.round(musicVolume * 100);
+effectsVolumeSlider.value = Math.round(effectsVolume * 100);
+
+document.getElementById('optionsBtn').addEventListener('click', () => {
+  goToScreen(optionsScreen);
+});
+musicToggleBtn.addEventListener('click', () => {
+  ensureAudio();
+  setMusicEnabled(!musicEnabled);
+  refreshToggleButtons();
+});
+effectsToggleBtn.addEventListener('click', () => {
+  ensureAudio();
+  setEffectsEnabled(!effectsEnabled);
+  refreshToggleButtons();
+  if (effectsEnabled) playCoinSound(); // quick sample so the toggle feels responsive
+});
+musicVolumeSlider.addEventListener('input', () => {
+  setMusicVolume(musicVolumeSlider.value / 100);
+});
+effectsVolumeSlider.addEventListener('input', () => {
+  ensureAudio();
+  setEffectsVolume(effectsVolumeSlider.value / 100);
+});
+effectsVolumeSlider.addEventListener('change', () => {
+  playCoinSound(); // sample at the chosen volume once they release the slider
 });
 
 const MEDALS = ['🥇', '🥈', '🥉'];
@@ -1872,8 +2857,12 @@ async function showTopScores(displayEl) {
       '<div class="hiscoreFallback">Best on this device: ' + getHighScore() + '</div></div>';
   }
 }
-document.getElementById('hiscoreBtn').addEventListener('click', () => showTopScores(hiscoreLine));
+document.getElementById('hiscoreBtn').addEventListener('click', () => {
+  goToScreen(hiscoreScreen);
+  showTopScores(hiscoreLine);
+});
 document.getElementById('hiscoreBtnGameOver').addEventListener('click', () => showTopScores(hiscoreLineGameOver));
+document.getElementById('hiscoreBtnWin').addEventListener('click', () => showTopScores(hiscoreLineWin));
 
 requestAnimationFrame(loop);
 </script>
