@@ -5,18 +5,34 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Hebrew Spelling Practice</title>
   <style>
+    *, *::before, *::after { box-sizing: border-box; }
+
+    /* Single fluid scale: height drives it; 6vw only guards extremely narrow/tall viewports. */
+    html {
+      font-size: max(9px, min(2.6vh, 6vw));
+      font-size: max(9px, min(2.6svh, 6vw)); /* svh keeps it fitting while mobile browser chrome is visible */
+    }
+
     /* General styles */
     body {
       font-family: Arial, sans-serif;
       direction: rtl;
       text-align: center;
-      padding: 20px;
-      font-size: 20px; /* Base font size */
+      margin: 0;
+      padding: 0.8rem;
+      font-size: 1rem; /* Base font size */
+      min-height: 100dvh;
+      overflow-x: hidden;
+    }
+
+    h1 {
+      font-size: 2rem;
+      margin: 0.4rem 0 0.8rem;
     }
 
     button {
       font-size: 1.5rem; /* Larger relative font size for buttons */
-      margin: 10px;
+      margin: 0.4rem;
       cursor: pointer;
     }
 
@@ -24,12 +40,14 @@
     .yellow-text {
       color: #FFD700; /* Yellow text */
       text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000; /* Black outline */
-      font-size: 3.5rem; /* Larger font size for headings and important text */
+      font-size: 1.8rem; /* Larger font size for headings and important text */
+      margin: 0.4rem 0;
     }
     .yellow-text2 {
       color: #FFD700; /* Yellow text */
       text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000; /* Black outline */
-      font-size: 3.5rem; /* Larger font size for headings and important text */
+      font-size: 1.4rem; /* Larger font size for headings and important text */
+      margin: 0.3rem 0;
       text-align:right;
     }
 
@@ -39,9 +57,9 @@
       background-color: #FFD700; /* Yellow background */
       color: black; /* Black text */
       border: 2px solid black; /* Black border */
-      border-radius: 1rem;
-      padding: 15px 30px; /* Increased padding for larger buttons */
-      font-size: 4.5rem; /* Larger font size for buttons */
+      border-radius: 0.8rem;
+      padding: 0.6rem 1.2rem; /* Increased padding for larger buttons */
+      font-size: 1.6rem; /* Larger font size for buttons */
       width:100%;
     }
 
@@ -49,9 +67,9 @@
       background-color: #FFD700; /* Yellow background */
       color: black; /* Black text */
       border: 2px solid black; /* Black border */
-      border-radius: 5px;
-      padding: 15px 30px; /* Increased padding for larger buttons */
-      font-size: 2.5rem; /* Larger font size for buttons */
+      border-radius: 0.4rem;
+      padding: 0.3rem 0.8rem; /* Increased padding for larger buttons */
+      font-size: 1.3rem; /* Larger font size for buttons */
     }
     
 
@@ -66,66 +84,66 @@
       justify-content: center;
       align-items: center;
       margin: 0 auto;
-      padding: 30px; /* Increased padding for larger containers */
+      padding: 1.2rem; /* Increased padding for larger containers */
       background-color: #007BFF; /* Nice blue background */
-      border-radius: 15px; /* Rounded corners */
+      border-radius: 0.8rem; /* Rounded corners */
       color: #FFD700; /* Yellow text */
-      font-size: 1.5rem; /* Larger font size for container text */
+      font-size: 1.2rem; /* Larger font size for container text */
       box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); /* Optional shadow for better appearance */
-      max-width: 50rem; /* Limit the width of the box */
+      width: 100%;
+      max-width: 40rem; /* Limit the width of the box */
       text-align: center;
     }
-      /*height:80vh;*/
 
     /* Input box styling */
     #wordInput {
-      display: flex;
-      flex-direction: column;
-      font-size: 5rem; /* Larger font size for input box */
+      font-size: 2.2rem; /* Larger font size for input box */
       text-align: center;
-      margin: 50px auto;
-      padding: 10px;
-      width: 80%; /* Make the input box wider */
+      margin: 1rem auto;
+      padding: 0.3rem;
       border: 2px solid black;
-      border-radius: 5px;
+      border-radius: 0.4rem;
       width:95%;
+    }
+
+    /* Practice word list rows: sized so all NUM_WORDS fit without scrolling */
+    .word-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      width: 100%;
+      margin: 0.1rem 0;
+    }
+
+    .word-row span {
+      font-size: 1.3rem;
+      flex: 1 1 auto;
+      min-width: 0;
+      text-align: left;
+      overflow-wrap: break-word;
+    }
+
+    .word-row .yellow-button2 {
+      flex: none;
+      font-size: 1rem;
+      padding: 0.1rem 0.6rem;
+      margin: 0.1rem;
     }
 
     /* Progress bar styles */
     #progressBarContainer {
       background-color: #ddd;
-      width: 80%;
-      margin: 10px auto;
-      height: 50px; /* Increased height for the progress bar */
-      border-radius: 10px;
+      width: 90%;
+      margin: 0.5rem auto;
+      height: 1.6rem; /* Increased height for the progress bar */
+      border-radius: 0.5rem;
     }
 
     #progressBar {
       background-color: #4caf50;
       width: 0%;
       height: 100%;
-      border-radius: 10px;
-    }
-
-    /* Responsive styles for mobile */
-    @media (max-width: 768px) {
-      body {
-        font-size: 18px; /* Slightly smaller base font size for mobile */
-      }
-
-      .yellow-button {
-        font-size: 1.2rem; /* Slightly smaller buttons on mobile */
-        padding: 12px 24px; /* Adjust padding for smaller screens */
-      }
-
-      .blue-container {
-        padding: 20px; /* Reduce padding for smaller screens */
-        font-size: 1.2rem; /* Adjust font size for mobile */
-      }
-
-      #progressBarContainer {
-        width: 90%; /* Make progress bar wider on smaller screens */
-      }
+      border-radius: 0.5rem;
     }
   </style>
 </head>
@@ -177,7 +195,7 @@
 
 
   <div id="winDisplayScreen" class="blue-container" style="display: none;">
-    <div id="winDisplayContainer">
+    <div id="winDisplayContainer" style="width: 100%; max-height: 55vh; overflow-y: auto;">
     </div>
     <button class="yellow-button" onclick="resetWins()">נקה רשימה</button>
     <button class="yellow-button" onclick="returnToOpeningScreen()">חזור</button>
@@ -188,7 +206,7 @@
   <div id="wordList" class="blue-container" style="display: none;">
     <h2 class="yellow-text">המילים לתרגול</h2>
     <div id="wordListContainer" style="width: 100%;"></div>
-    <button onclick="startTest()" class="yellow-button" style="margin-top: 20px;">🔊 התחל תרגול</button>
+    <button onclick="startTest()" class="yellow-button" style="margin-top: 0.5rem;">🔊 התחל תרגול</button>
   </div>
   <div id="game" class="blue-container" style="display: none;">
     <p id="instruction" class="yellow-text">לחץ על כפתור "שמע מילה" והקלד את מה ששמעת.</p>
@@ -202,8 +220,8 @@
   </div>
   <div id="result" class="blue-container" style="display: none;">
     <h2 id="resultScore" class="yellow-text"></h2>
-    <ul id="resultErrors" style="list-style: none; padding: 0; margin: 10px 0;"></ul>
-    <div id="resultButtons" style="margin-top: 20px;">
+    <ul id="resultErrors" style="list-style: none; padding: 0; margin: 0.5rem 0; width: 100%; max-height: 45vh; overflow-y: auto;"></ul>
+    <div id="resultButtons" style="margin-top: 0.8rem; width: 100%;">
       <!-- Buttons will be dynamically added here -->
     </div>
   </div>
@@ -232,7 +250,7 @@ function addWin() {
     const wins = JSON.parse(localStorage.getItem("dailyWins") || "{}");
     const oldWins = parseInt(localStorage.getItem("oldWins") || "0");
 
-    let html = `<h2 class="yellow-text">ניצחונות לפי ימים</h2><table style="color:white; font-size:2rem; margin:auto;"><tr><th>תאריך</th><th>ניצחונות</th></tr>`;
+    let html = `<h2 class="yellow-text">ניצחונות לפי ימים</h2><table style="color:white; font-size:1.3rem; margin:auto;"><tr><th>תאריך</th><th>ניצחונות</th></tr>`;
     for (const date in wins) {
       html += `<tr><td>${date}</td><td>${wins[date]}</td></tr>`;
     }
@@ -299,8 +317,8 @@ function addWin() {
       wordListContainer.innerHTML = '';
       selectedWords.forEach((word, index) => {
         wordListContainer.innerHTML += `
-          <div style="display: flex; justify-content: space-between; align-items: center; width: 100%; margin: 5px 0;">
-            <span style="font-size: 3rem; flex-grow: 1; text-align: left;">${word}</span>
+          <div class="word-row">
+            <span>${word}</span>
             <button onclick="playWord('${selectedWords[index]}')" class="yellow-button2">▶</button>
           </div>`;
       });
@@ -460,7 +478,7 @@ async function playWord(index) {
         addWin(); // Add a win if all words were answered correctly
         playEffect("assets/success-fanfare-trumpets-6185.mp3");
         resultHTML += `<p class = "yellow-text">כל הכבוד! עברת את כל המילים בהצלחה!</p>`;
-        resultHTML += `<img src="assets/win.png" alt="Win" style="width: 50rem; height: 50rem;">`;
+        resultHTML += `<img src="assets/win.png" alt="Win" style="max-height: 35vh; max-width: 100%; width: auto; height: auto;">`;
         resultHTML += `<button onclick="stopEffect();initGame()" class="yellow-button">התחל סבב חדש</button>`;
       }
 
