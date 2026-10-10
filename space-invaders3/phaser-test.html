@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8" />
+    <title>Phaser Test</title>
+    <script src="https://cdn.jsdelivr.net/npm/phaser@3.55.2/dist/phaser.js"></script>
+</head>
+<body>
+    <div id="game"></div>
+    <script>
+        // Simple test to see if Phaser works
+        class TestScene extends Phaser.Scene {
+            constructor() {
+                super('TestScene');
+            }
+
+            preload() {
+                console.log('Preload called');
+            }
+
+            create() {
+                console.log('Create called');
+                console.log('this.add:', this.add);
+                console.log('this.physics:', this.physics);
+                console.log('this.input:', this.input);
+
+                // Try to create a simple rectangle
+                if (this.add) {
+                    const rect = this.add.rectangle(100, 100, 50, 50, 0xff0000);
+                    console.log('Rectangle created:', rect);
+                } else {
+                    console.error('this.add is undefined!');
+                }
+            }
+        }
+
+        const config = {
+            type: Phaser.AUTO,
+            width: 800,
+            height: 600,
+            backgroundColor: '#000',
+            scene: TestScene
+        };
+
+        const game = new Phaser.Game(config);
+        console.log('Game created');
+    </script>
+</body>
+</html>
