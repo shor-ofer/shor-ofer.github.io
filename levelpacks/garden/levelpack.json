@@ -1,0 +1,17 @@
+{
+  "name": "Root Garden Space",
+  "first": "levels/rootgame.json",
+  "sounds": "sounds/default.json",
+  "tileset": {
+    "texture": "tiles/tiles.png",
+    "size": 64,
+    "row_0": "01234567890123      ",
+    "row_1": "##########////TU*o$~",
+    "row_C": "SSSSSSSSSS0123 ^    ",
+    "row_D": "TTTTTTTTTTTTTTTTDDDD",
+    "col_0": "0123456789"
+  },
+  "objects": {
+    "manifest": "objects/objects.json"
+  }
+}

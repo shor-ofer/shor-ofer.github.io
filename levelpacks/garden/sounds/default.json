@@ -1,0 +1,22 @@
+{
+  "_comment": "Every noise the game can make, by id — nothing outside this file names an audio path. A level or pack may name its own manifest, which is laid over this one, so retuning a single sound is a file this size rather than a copy of all of them, and an entry of null silences that one. A def is one of three things. A synthesized shape: wave (oscillator type), sweep ([[hz, seconds], ...] for one note bending through those pitches), notes ([hz, ...] for separate notes `step` seconds apart), gain (peak volume), attack (seconds to reach it, 0 starts there), decay (seconds to fade back to silence), noise (an extra burst of static over the top). A recorded one-shot: src naming a .wav or .mp3, resolved against this manifest, with gain scaling it. Or a track: src plus loop true, which is what a level's \"music\" id picks. `shake` is how long the phone buzzes with it, since every sound in the game is a response to something the player just did.",
+  "sounds": {
+    "eat":         { "wave": "square",   "sweep": [[560, 0], [150, 0.12]],                "gain": 0.18, "attack": 0,     "decay": 0.14, "shake": 20,
+                     "noise": { "gain": 0.12, "decay": 0.06 } },
+    "hurt":        { "wave": "sawtooth", "sweep": [[220, 0], [60, 0.35]],                 "gain": 0.2,  "attack": 0.02,  "decay": 0.4,  "shake": 120 },
+    "coin":        { "wave": "sine",     "sweep": [[880, 0], [1400, 0.08]],               "gain": 0.15, "attack": 0.01,  "decay": 0.15, "shake": 12 },
+    "gem":         { "wave": "triangle", "notes": [1046, 1318, 1568], "step": 0.055,      "gain": 0.16, "attack": 0.008, "decay": 0.18, "shake": 25 },
+    "shieldUp":    { "wave": "triangle", "notes": [523, 784],         "step": 0.09,       "gain": 0.16, "attack": 0.015, "decay": 0.2,  "shake": 30 },
+    "shieldBreak": { "wave": "triangle", "sweep": [[700, 0], [300, 0.18]],                "gain": 0.18, "attack": 0.01,  "decay": 0.2,  "shake": 40 },
+    "lantern":     { "wave": "sine",     "notes": [392, 523, 659],    "step": 0.12,       "gain": 0.17, "attack": 0.03,  "decay": 0.45, "shake": 20 },
+    "checkpoint":  { "wave": "sine",     "notes": [523, 659, 784],    "step": 0.1,        "gain": 0.15, "attack": 0.015, "decay": 0.25, "shake": 25 },
+    "key":         { "wave": "square",   "notes": [988, 1319],        "step": 0.06,       "gain": 0.12, "attack": 0.01,  "decay": 0.12, "shake": 20 },
+    "unlock":      { "wave": "square",   "sweep": [[140, 0], [90, 0.25]],                 "gain": 0.2,  "attack": 0.02,  "decay": 0.3,  "shake": 30 },
+    "teleport":    { "wave": "sawtooth", "sweep": [[200, 0], [1600, 0.22], [500, 0.4]],   "gain": 0.14, "attack": 0.05,  "decay": 0.42, "shake": 35 },
+
+    "theme":       { "src": "music/theme.mp3", "loop": true },
+    "calm":        { "src": "music/calm.wav",  "loop": true },
+    "deep":        { "src": "music/deep.wav",  "loop": true },
+    "chase":       { "src": "music/chase.wav", "loop": true }
+  }
+}

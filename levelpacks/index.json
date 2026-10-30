@@ -1,0 +1,53 @@
+[
+  {
+    "name": "garden",
+    "dir": "/levelpacks/garden/",
+    "title": "Root Garden Space",
+    "files": [
+      "index.html",
+      "levelpack.json",
+      "levels/level-1.json",
+      "levels/level-2.json",
+      "levels/level-3.json",
+      "levels/level-4.json",
+      "levels/level-5.json",
+      "levels/rootgame.json",
+      "objects/objects.json",
+      "objects/objects.png",
+      "objects/sprites.json",
+      "sounds/default.json",
+      "sounds/music/calm.wav",
+      "sounds/music/chase.wav",
+      "sounds/music/deep.wav",
+      "sounds/music/theme.mp3",
+      "tiles/tiles.png"
+    ]
+  },
+  {
+    "name": "test",
+    "dir": "/levelpacks/test/",
+    "title": "Enemy Test",
+    "files": [
+      "backgrounds/bg-bricks.png",
+      "backgrounds/bg-stars.png",
+      "index.html",
+      "levelpack.json",
+      "levels/bonus-hub.json",
+      "levels/bonus-room-2.json",
+      "levels/bonus-room.json",
+      "levels/lantern.json",
+      "levels/rowd-allt.json",
+      "levels/rowd-decor.json",
+      "levels/test-enemies.json",
+      "objects/objects.json",
+      "objects/objects.png",
+      "objects/sprites.json",
+      "sounds/default.json",
+      "sounds/music/calm.wav",
+      "sounds/music/chase.wav",
+      "sounds/music/deep.wav",
+      "sounds/music/theme.mp3",
+      "tiles/tiles.png"
+    ]
+  }
+]

@@ -1,0 +1,17 @@
+{
+  "name": "Enemy Test",
+  "first": "levels/lantern.json",
+  "sounds": "sounds/default.json",
+  "tileset": {
+    "texture": "tiles/tiles.png",
+    "size": 64,
+    "row_0": "01234567890123      ",
+    "row_1": "##########////TU*o$~",
+    "row_C": "SSSSSSSSSS0123 ^    ",
+    "row_D": "DDDDDDDDDDDDDDDDDDDD",
+    "col_0": "0123456789"
+  },
+  "objects": {
+    "manifest": "objects/objects.json"
+  }
+}

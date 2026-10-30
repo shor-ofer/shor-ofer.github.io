@@ -1,0 +1,30 @@
+{
+  "texture": "objects.png",
+  "sprites": {
+    "beetle": {"frame":{"x":0,"y":925,"w":44,"h":42},"frames":5,"fps":10,"scale":0.666667,"anchor":[14.67,14],"collision":{"shape":"circle","x":14.67,"y":14,"r":12}},
+    "checkpoint": {"frame":{"x":0,"y":29,"w":54,"h":94},"frames":2,"anchor":[27,77],"parts":{"off":0,"on":1},"collision":{"shape":"circle","x":27,"y":77,"r":14}},
+    "cloud": {"frame":{"x":0,"y":123,"w":200,"h":100},"frames":1,"anchor":[100,50]},
+    "coin": {"frame":{"x":0,"y":223,"w":23,"h":23},"frames":6,"fps":7.5,"anchor":[11.7,11.7],"collision":{"shape":"circle","x":11.7,"y":11.7,"r":6}},
+    "coin2": {"frame":{"x":0,"y":246,"w":24,"h":24},"frames":6,"fps":7.5,"anchor":[12,12],"collision":{"shape":"circle","x":12,"y":12,"r":6}},
+    "door": {"frame":{"x":0,"y":270,"w":30,"h":32},"frames":1,"anchor":[-0.5,0],"mask":"doorGlow","collision":{"shape":"tile"}},
+    "doorGlow": {"frame":{"x":0,"y":302,"w":30,"h":32},"frames":1,"anchor":[-0.5,0]},
+    "flag": {"frame":{"x":0,"y":334,"w":42,"h":52},"frames":6,"fps":3,"anchor":[20.5,30.5],"mask":"flagGlow","collision":{"shape":"circle","x":20.5,"y":30.5,"r":14}},
+    "flagGlow": {"frame":{"x":0,"y":386,"w":42,"h":52},"frames":1,"anchor":[20.5,30.5]},
+    "frog": {"frame":{"x":0,"y":438,"w":26,"h":24},"frames":1,"anchor":[12.5,10],"collision":{"shape":"circle","x":12.5,"y":10,"r":12}},
+    "gem": {"frame":{"x":0,"y":462,"w":18,"h":22},"frames":4,"fps":6,"anchor":[9,9],"collision":{"shape":"circle","x":9,"y":9,"r":8}},
+    "key": {"frame":{"x":0,"y":484,"w":42,"h":32},"frames":6,"fps":6,"anchor":[21,15.75],"mask":"keyGlow","collision":{"shape":"circle","x":21,"y":15.75,"r":9}},
+    "keyGlow": {"frame":{"x":0,"y":516,"w":42,"h":32},"frames":6,"fps":6,"anchor":[21,15.75]},
+    "lanternBig": {"frame":{"x":228,"y":548,"w":38,"h":38},"frames":3,"fps":6,"anchor":[18.75,17.5],"collision":{"shape":"circle","x":18.75,"y":17.5,"r":11}},
+    "lanternFull": {"frame":{"x":0,"y":548,"w":38,"h":38},"frames":3,"fps":6,"anchor":[18.75,17.5],"collision":{"shape":"circle","x":18.75,"y":17.5,"r":11}},
+    "lanternSmall": {"frame":{"x":114,"y":548,"w":38,"h":38},"frames":3,"fps":6,"anchor":[18.75,17.5],"collision":{"shape":"circle","x":18.75,"y":17.5,"r":11}},
+    "moth": {"frame":{"x":0,"y":586,"w":36,"h":18},"frames":6,"fps":24,"anchor":[17.5,8.5],"collision":{"shape":"circle","x":17.5,"y":8.5,"r":10}},
+    "plant": {"frame":{"x":0,"y":604,"w":38,"h":114},"frames":3,"anchor":[19,100],"parts":{"bud":0,"head":2,"stem":1},"collision":{"shape":"circle","x":19,"y":100,"r":13}},
+    "platform": {"frame":{"x":0,"y":718,"w":53,"h":23},"frames":6,"fps":7.5,"anchor":[10.28,1.81],"slice":10.88,"collision":{"shape":"box","x":10.28,"y":1.81,"w":32,"h":10}},
+    "portal": {"frame":{"x":0,"y":741,"w":40,"h":40},"frames":6,"fps":8.6,"anchor":[20,20],"mask":"portalGlow","collision":{"shape":"circle","x":20,"y":20,"r":14}},
+    "portalGlow": {"frame":{"x":0,"y":781,"w":40,"h":40},"frames":6,"fps":8.6,"anchor":[20,20]},
+    "rock": {"frame":{"x":0,"y":821,"w":18,"h":18},"frames":1,"anchor":[7.5,8.5],"collision":{"shape":"circle","x":7.5,"y":8.5,"r":9}},
+    "shield": {"frame":{"x":0,"y":839,"w":22,"h":22},"frames":1,"anchor":[11,11],"collision":{"shape":"circle","x":11,"y":11,"r":10}},
+    "sign": {"frame":{"x":0,"y":861,"w":38,"h":41},"frames":1,"anchor":[19,25],"collision":{"shape":"circle","x":19,"y":25,"r":16}},
+    "worm": {"frame":{"x":0,"y":902,"w":26,"h":22},"frames":8,"anchor":[11,11],"parts":{"body":[0,4],"headLeft":6,"headRight":7,"tail":5},"collision":{"shape":"circle","x":11,"y":11,"r":11}}
+  }
+}
