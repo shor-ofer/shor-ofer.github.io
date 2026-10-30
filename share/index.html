@@ -26,17 +26,24 @@
                                browser — to play, share, or take out
   Taking one out always waits for a click, so a link alone can't empty
   anyone's browser. Packs on disk in levelpacks/ aren't touched.
-    share/?from=<id>&get=<name>&v=<version>
+    share/?from=<id>&get=<name>
                                a friend's link: fetch that pack from that browser
 
-  A link names the pack and its version (packStore.manifestOf: a hash of the
-  list of its files' hashes). A friend fetches only the files whose hash
-  none of the level packs in their browser has: an older copy of the same
-  pack, or another pack built with the same art and sounds, gives the rest. Opened in a browser that already has that very
-  version — fetched before, or the one it was shared from in the first
-  place, on disk in levelpacks/ — it asks nothing of the other browser: that
-  copy is played, and shared from this browser, with a link of its own. So every friend who has it can hand
-  it on, whether or not whoever they got it from is still there.
+  Every browser has one id of its own (shareId, kept in localStorage), so its
+  link for a pack is the same every time: it works whenever a share page is
+  open in that browser, whichever pack that page was opened on — the friend
+  asks for the pack by name. Only one page at a time can hold the id; another
+  waits for it.
+
+  The sharer answers with the pack's manifest (packStore.manifestOf: every
+  file's hash, and a version from those). A friend fetches only the files
+  whose hash none of the level packs in their browser has: an older copy of
+  the same pack, or another pack built with the same art and sounds, gives
+  the rest. A browser opening its own link just shares that pack; one with a
+  copy whose sharer isn't there plays its copy. So every friend who has it can
+  hand it on, with their own link, whether or not whoever they got it from is
+  still there. (Older links also carry &v=<version>: one already held at that
+  version is played without asking the other browser.)
 -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.4/peerjs.min.js"></script>
 <script src="/src/js/packstore.js"></script>
@@ -96,7 +103,7 @@
   <!-- the one sharing -->
   <section id="sendView" class="card" hidden>
     <h2 id="sendTitle">Share a level pack</h2>
-    <p id="sendNote">Pick one, then send the link to a friend. Keep this page open while they fetch it — it comes straight from your browser.</p>
+    <p id="sendNote">Pick one, then send the link to a friend. It stays the same for this browser — it works whenever a share page is open here, and the pack comes straight from your browser.</p>
     <div class="row" id="haveRow" hidden><button class="go play" id="havePlay">▶ Play</button></div>
     <label>Level pack <select id="packSel"></select></label>
     <div class="row"><button class="go" id="startBtn">Share it</button><span class="status" id="sendStatus"></span></div>
@@ -145,7 +152,9 @@ const fmt = n => n < 1024 ? `${n} B` : n < 1048576 ? `${(n / 1024).toFixed(0)} K
 const pageUrl = new URL(location.pathname, location.origin).href;
 
 // What goes over the wire, in order:
+//   friend -> sharer  { t: 'ask', name }     the pack its link names
 //   sharer -> friend  { t: 'pack', name, title, v, files: [{ path, size, hash }] }
+//                     or { t: 'none', name }  if this browser hasn't got it
 //   friend -> sharer  { t: 'want', paths }   the files whose hash no level
 //                                            pack in this browser has — all
 //                                            of them if it has none
@@ -160,6 +169,26 @@ const pageUrl = new URL(location.pathname, location.origin).href;
 packStore.boot();
 
 const versionOf = files => packStore.manifestOf(files).v;
+
+// This browser's id on the broker: made once and kept, so a link made here
+// stays the same.
+function shareId() {
+  let id = null;
+  try { id = localStorage.getItem('wtwShareId'); } catch { /* storage off: a new one each time */ }
+  if (!/^wtw-[0-9a-f]{12}$/.test(id || '')) {
+    id = 'wtw-' + [...crypto.getRandomValues(new Uint8Array(6))].map(b => b.toString(16).padStart(2, '0')).join('');
+    try { localStorage.setItem('wtwShareId', id); } catch { /* as above */ }
+  }
+  return id;
+}
+const linkFor = name => `${pageUrl}?from=${encodeURIComponent(shareId())}&get=${encodeURIComponent(packStore.clean(name))}`;
+
+// The pack a link names, of those this browser can send: one in its pack
+// store before one on disk of the same name.
+async function sourceNamed(name) {
+  const list = (await sources()).filter(s => packStore.clean(s.name) === packStore.clean(name));
+  return list.find(s => s.key.startsWith('idb:')) || list[0] || null;
+}
 
 // Where a stored pack is played: its own index.html, the whole game, or the
 // engine's page on it if it came without one.
@@ -212,7 +241,7 @@ async function sendMode(auto) {
   if (want && list.some(p => p.key === want)) sel.value = want;
   $('#startBtn').disabled = !list.length;
 
-  let files = null, pack = null, peer = null;
+  let files = null, pack = null, peer = null, manifest = null;
   $('#startBtn').onclick = async () => {
     pack = list.find(p => p.key === sel.value);
     if (!pack) return;
@@ -221,17 +250,33 @@ async function sendMode(auto) {
     try { files = await pack.load(); }
     catch (err) { say('#sendStatus', 'Could not read it: ' + err.message, 'err'); $('#startBtn').disabled = sel.disabled = false; return; }
     const size = files.reduce((n, f) => n + f.data.byteLength, 0);
-    const manifest = packStore.manifestOf(files), v = manifest.v;
+    manifest = packStore.manifestOf(files);
+    $('#linkOut').value = linkFor(pack.name);
+    $('#linkBox').hidden = false;
     say('#sendStatus', 'Opening a line…');
-    peer = new Peer('wtw-' + [...crypto.getRandomValues(new Uint8Array(6))].map(b => b.toString(16).padStart(2, '0')).join(''));
-    peer.on('open', id => {
-      $('#linkOut').value = `${pageUrl}?from=${encodeURIComponent(id)}&get=${encodeURIComponent(packStore.clean(pack.name))}&v=${v}`;
-      $('#linkBox').hidden = false;
-      say('#sendStatus', `Ready — ${files.length} files, ${fmt(size)}. Waiting for a friend…`, 'ok');
-    });
-    peer.on('connection', conn => serve(conn, pack, files, manifest));
-    peer.on('disconnected', () => { say('#sendStatus', 'Lost the broker — reconnecting…', 'err'); peer.reconnect(); });
-    peer.on('error', err => say('#sendStatus', 'Connection trouble: ' + (err.type || err.message), 'err'));
+    // the one picked is at hand; any other a friend asks for is read then
+    const current = () => ({ pack, files, manifest });
+    let tries = 0;
+    const open = () => {
+      peer = new Peer(shareId());
+      peer.on('open', () => say('#sendStatus', `Ready — ${files.length} files, ${fmt(size)}. Waiting for a friend…`, 'ok'));
+      peer.on('connection', conn => serve(conn, current));
+      peer.on('disconnected', () => {
+        if (peer.destroyed) return;
+        say('#sendStatus', 'Lost the broker — reconnecting…', 'err');
+        peer.reconnect();
+      });
+      peer.on('error', err => {
+        if (err.type !== 'unavailable-id') { say('#sendStatus', 'Connection trouble: ' + (err.type || err.message), 'err'); return; }
+        // another page of this browser holds the id — it sends this pack
+        // too, so the link works meanwhile — or one closed only just now
+        peer.destroy();
+        if (++tries > 24) { say('#sendStatus', "This browser's line is still in use. Close its other share pages and reload this one.", 'err'); return; }
+        say('#sendStatus', `This browser's line is in use — by another share page open here (the link works through it), or one only just closed. Trying again… (${tries})`, 'err');
+        setTimeout(open, 5000);
+      });
+    };
+    open();
   };
   $('#copyBtn').onclick = async () => {
     try { await navigator.clipboard.writeText($('#linkOut').value); $('#copyBtn').textContent = 'Copied'; }
@@ -265,10 +310,11 @@ async function haveHere(name, v) {
   return null;
 }
 
-// One friend: a row of its own; the manifest, then the files it asks for,
-// one by one.
-function serve(conn, pack, all, manifest) {
-  let files = [], size = 0;
+// One friend: a row of its own; the pack it asks for — the one this page was
+// opened on, or any other this browser has — its manifest, then the files it
+// wants, one by one.
+function serve(conn, current) {
+  let all = [], files = [], size = 0;
   const row = document.createElement('div');
   row.className = 'friend';
   row.innerHTML = `<div class="status"><span>A friend</span><span class="n">connecting…</span></div><div class="bar"><i></i></div>`;
@@ -288,10 +334,22 @@ function serve(conn, pack, all, manifest) {
     conn.send({ t: 'file', path: f.path, data: f.data });
     sent += f.data.byteLength;
   };
-  conn.on('open', () => {
-    conn.send({ t: 'pack', name: pack.name, title: pack.title, v: manifest.v, files: manifest.files });
-  });
-  conn.on('data', msg => {
+  const fail = text => { n.textContent = text; n.parentElement.classList.add('err'); finished = true; };
+  conn.on('data', async msg => {
+    if (msg && msg.t === 'ask') {
+      let { pack, files: had, manifest } = current();
+      if (packStore.clean(msg.name) !== packStore.clean(pack.name)) {
+        pack = await sourceNamed(msg.name);
+        if (!pack) { conn.send({ t: 'none', name: msg.name }); fail(`asked for ${msg.name}, which isn't here`); return; }
+        try { had = await pack.load(); }
+        catch (err) { conn.send({ t: 'none', name: msg.name }); fail('could not read it: ' + err.message); return; }
+        manifest = packStore.manifestOf(had);
+      }
+      all = had;
+      row.querySelector('span').textContent = `A friend — ${pack.title}`;
+      conn.send({ t: 'pack', name: pack.name, title: pack.title, v: manifest.v, files: manifest.files });
+      return;
+    }
     if (msg && msg.t === 'want' && Array.isArray(msg.paths)) {
       const wanted = new Set(msg.paths);
       files = all.filter(f => wanted.has(f.path));
@@ -311,6 +369,11 @@ function serve(conn, pack, all, manifest) {
 // ---------- fetching ----------
 async function getMode(from) {
   const name = q.get('get') && packStore.clean(q.get('get')), v = q.get('v');
+  // this browser's own link: share that pack from here
+  if (name && from === shareId()) {
+    const src = await sourceNamed(name);
+    if (src) { await haveMode(src, await src.load()); return; }
+  }
   if (name && v) {
     const have = await haveHere(name, v);
     if (have) { await haveMode(have.src, have.files); return; }
@@ -322,10 +385,18 @@ async function getMode(from) {
   const files = [];
   peer.on('open', () => {
     const conn = peer.connect(from, { reliable: true });
-    conn.on('open', () => { $('#getNote').textContent = 'Connected — fetching…'; });
+    conn.on('open', () => {
+      $('#getNote').textContent = 'Connected — fetching…';
+      conn.send({ t: 'ask', name: name || '' });
+    });
     conn.on('data', async msg => {
       if (!msg) return;
-      if (msg.t === 'pack') {
+      if (msg.t === 'none') {
+        done = true;
+        say('#getStatus', `Your friend's browser hasn't got ${msg.name || 'that pack'} any more.`, 'err');
+        await offerOwn();
+        peer.destroy();
+      } else if (msg.t === 'pack') {
         meta = msg;
         $('#getTitle').textContent = msg.title;
         // every file this browser already holds, by hash, in any level pack
@@ -369,9 +440,23 @@ async function getMode(from) {
     });
     conn.on('close', () => { if (!done) say('#getStatus', 'Your friend closed their page before it was all here. Ask them to share it again.', 'err'); });
   });
-  peer.on('error', err => say('#getStatus', err.type === 'peer-unavailable'
-    ? "Your friend's page isn't open any more — the link only works while it is."
-    : 'Connection trouble: ' + (err.type || err.message), 'err'));
+  peer.on('error', async err => {
+    say('#getStatus', err.type === 'peer-unavailable'
+      ? "Your friend's share page isn't open right now — the link works whenever it is."
+      : 'Connection trouble: ' + (err.type || err.message), 'err');
+    if (err.type === 'peer-unavailable') await offerOwn();
+  });
+
+  // A copy of the pack already here, maybe older: to play meanwhile.
+  async function offerOwn() {
+    const src = name && await sourceNamed(name);
+    if (!src) return;
+    $('#getTitle').textContent = src.title;
+    $('#getNote').textContent = 'You have a copy of it here already — play that one meanwhile.';
+    $('#doneRow').hidden = false;
+    $('#playBtn').onclick = async () => { location.href = src.play(await src.load()); };
+    $('#passBtn').onclick = () => { location.href = `${pageUrl}?pack=${encodeURIComponent(src.key)}&go=1`; };
+  }
 }
 
 // Into this browser's pack store, then played from there: the pack's own
