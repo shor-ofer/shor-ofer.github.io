@@ -112,6 +112,7 @@
     <h2>Level packs</h2>
     <p>On disk in levelpacks/, and kept in this browser — by the level editor, or fetched from a friend.</p>
     <div class="friends" id="listRows"></div>
+    <div class="row" id="listAllRow" hidden><button id="listAll">🗑 Delete all in this browser</button></div>
     <div class="status" id="listStatus"></div>
   </section>
 
@@ -190,7 +191,7 @@ async function sources() {
   try {
     for (const p of await packStore.list('levels')) {
       if (p.name.startsWith('__')) continue;     // the editor's passing copies
-      out.push({ key: 'idb:' + p.name, name: p.name, title: p.title || p.name, label: `${p.title || p.name} — in this browser`,
+      out.push({ key: 'idb:' + p.name, name: p.name, title: p.title || p.name, label: `${p.title || p.name} — in this browser`, count: p.count,
         play: files => playUrl(p.name, files),
         version: async () => (await packStore.manifest('levels', p.name))?.v,
         load: () => readStored(p.name) });
@@ -407,17 +408,25 @@ function say(sel, text, kind = '') {
 
 // ---------- the list ----------
 // Every level pack this page can reach, each to play, to share (this page,
-// with it picked and shared at once), or — one in this browser — to take out.
+// with it picked and shared at once), or — one in this browser — to delete.
 async function listMode() {
   $('#listView').hidden = false;
   const draw = async () => {
     const list = await sources();
     const esc = t => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
     $('#listRows').innerHTML = list.map((p, i) => `<div class="row">
-      <span class="status" style="flex:1;min-width:12ch">${esc(p.title)}<br><small>${p.key.startsWith('idb:') ? 'in this browser' : 'levelpacks/' + esc(p.name)}</small></span>
+      <span class="status" style="flex:1;min-width:12ch">${esc(p.title)}<br><small>${p.key.startsWith('idb:') ? `in this browser, ${p.count} files` : 'levelpacks/' + esc(p.name)}</small></span>
       <button class="go" data-play="${i}">▶ Play</button>
       <button data-share="${i}">Share</button>
-      ${p.key.startsWith('idb:') ? `<button data-out="${i}">Take it out</button>` : ''}</div>`).join('');
+      ${p.key.startsWith('idb:') ? `<button data-out="${i}" title="Delete it from this browser">🗑 Delete</button>` : ''}</div>`).join('');
+    const stored = list.filter(p => p.key.startsWith('idb:'));
+    $('#listAllRow').hidden = stored.length < 2;
+    $('#listAll').onclick = async () => {
+      if (!confirm(`Delete all ${stored.length} level packs kept in this browser? The games in them go too.`)) return;
+      for (const p of stored) await packStore.remove('levels', p.name).catch(() => {});
+      say('#listStatus', 'Deleted every level pack in this browser.', 'ok');
+      await draw();
+    };
     if (!list.length) say('#listStatus', 'There are no level packs here.', 'ok');
     $('#listRows').onclick = async e => {
       const b = e.target.closest('button');
@@ -426,8 +435,9 @@ async function listMode() {
       if (b.dataset.play) { b.disabled = true; location.href = p.play(await p.load()); }
       else if (b.dataset.share) location.href = `${pageUrl}?pack=${encodeURIComponent(p.key)}&go=1`;
       else {
+        if (!confirm(`Delete ${p.title} from this browser? The game in it goes too.`)) return;
         b.disabled = true;
-        try { await packStore.remove('levels', p.name); say('#listStatus', `Took ${p.title} out of this browser.`, 'ok'); }
+        try { await packStore.remove('levels', p.name); say('#listStatus', `Deleted ${p.title} from this browser.`, 'ok'); }
         catch (err) { say('#listStatus', 'Could not: ' + err.message, 'err'); }
         await draw();
       }
