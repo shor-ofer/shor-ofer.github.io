@@ -1,0 +1,33 @@
+{
+  "sprites": "sprites.json",
+  "objects": {
+    "beetle": {"class":"Beetle","code":"0E0","props":{"sprite":"sprite::beetle","stompScore":1,"stompSound":"sound::eat","stompBounce":0.55,"speed":1.1,"stompParticles":"object::dust"}},
+    "checkpoint": {"class":"Checkpoint","code":"0!0","props":{"sprite":"sprite::checkpoint","off":"off","on":"on","sound":"sound::checkpoint"}},
+    "cloud": {"class":"Decoration","code":"0W0","props":{"sprite":"sprite::cloud"}},
+    "coin": {"class":"Treasure","code":"0C0","props":{"sprite":"sprite::coin","score":1,"pickSound":"sound::coin","tally":"coins","takeParticles":"object::sparkle"}},
+    "coin2": {"class":"Treasure","code":"0C1","props":{"sprite":"sprite::coin2","score":1,"pickSound":"sound::coin","tally":"coins","takeParticles":"object::sparkle"}},
+    "door": {"class":"Door","code":"nL0","props":{"sprite":"sprite::door","openSound":"sound::unlock"}},
+    "dust": {"class":"ParticleSystem","code":"0Z2","props":{"sprite":"","count":12,"rate":0,"interval":60,"speed":2.4,"speedJitter":0.5,"angle":-90,"spread":150,"gravity":0.22,"drag":0.96,"life":30,"lifeJitter":0.3,"radius":0,"sizeStart":4,"sizeEnd":1.5,"colorStart":"#b3a28c","colorEnd":"#5e5246","fade":true,"shape":"square","glow":false}},
+    "fireflies": {"class":"ParticleSystem","code":"0Z3","props":{"sprite":"","count":16,"rate":0.04,"interval":60,"speed":0.35,"speedJitter":0.5,"angle":-90,"spread":360,"gravity":-0.004,"drag":0.995,"life":140,"lifeJitter":0.3,"radius":40,"sizeStart":2.5,"sizeEnd":0,"colorStart":"#fffbb0","colorEnd":"#9cff5a","fade":true,"shape":"circle","glow":true}},
+    "flag": {"class":"Flag","code":"nF0","props":{"sprite":"sprite::flag"}},
+    "fountain": {"class":"ParticleSystem","code":"0Z4","props":{"sprite":"","count":30,"rate":0.7,"interval":60,"speed":4.2,"speedJitter":0.2,"angle":-90,"spread":22,"gravity":0.2,"drag":0.99,"life":42,"lifeJitter":0.3,"radius":0,"sizeStart":3,"sizeEnd":1,"colorStart":"#d8f6ff","colorEnd":"#3a86d6","fade":true,"shape":"circle","glow":false}},
+    "frog": {"class":"Frog","code":"2E0","props":{"sprite":"sprite::frog","stompScore":1,"stompSound":"sound::eat","stompBounce":0.55,"hopUp":8.5,"hopForward":2.2,"pause":40,"stompParticles":"object::dust"}},
+    "gem": {"class":"Treasure","code":"0C2","props":{"sprite":"sprite::gem","score":5,"pickSound":"sound::gem","tally":"gems","takeParticles":"object::gemSparkle"}},
+    "gemSparkle": {"class":"ParticleSystem","code":"0Z1","props":{"sprite":"","count":22,"rate":0,"interval":60,"speed":2.8,"speedJitter":0.5,"angle":-90,"spread":360,"gravity":0,"drag":0.92,"life":34,"lifeJitter":0.3,"radius":0,"sizeStart":3,"sizeEnd":0,"colorStart":"#e8fbff","colorEnd":"#b06aff","fade":true,"shape":"spark","glow":true}},
+    "key": {"class":"Key","code":"nK0","props":{"sprite":"sprite::key","pickSound":"sound::key","takeParticles":""}},
+    "lanternBig": {"class":"Lantern","code":"0N1","props":{"sprite":"sprite::lanternBig","radius":6,"pickSound":"sound::lantern","takeParticles":""}},
+    "lanternFull": {"class":"Lantern","code":"0N0","props":{"sprite":"sprite::lanternFull","radius":0,"pickSound":"sound::lantern","takeParticles":""}},
+    "lanternSmall": {"class":"Lantern","code":"0N2","props":{"sprite":"sprite::lanternSmall","radius":2,"pickSound":"sound::lantern","takeParticles":""}},
+    "moth": {"class":"Moth","code":"1E0","props":{"sprite":"sprite::moth","stompScore":1,"stompSound":"sound::eat","stompBounce":0.55,"speed":0.9,"range":3,"bob":14,"bobSpeed":0.05,"stompParticles":"object::dust"}},
+    "plant": {"class":"Plant","code":"0V0","props":{"sprite":"sprite::plant","reach":100,"trigger":40,"rise":16,"hold":10,"fall":20,"cooldown":50,"bounce":0.4,"bud":"bud","stem":"stem","head":"head"}},
+    "platform": {"class":"Platform","code":"n=0","props":{"sprite":"sprite::platform","speed":0.04}},
+    "platformStop": {"class":"PlatformStop","code":"0x0","props":{"sprite":""}},
+    "portal": {"class":"Portal","code":"nO0","props":{"sprite":"sprite::portal"}},
+    "rock": {"class":"RockSpawner","code":"0R0","props":{"sprite":"sprite::rock","interval":140,"gravity":0.55,"maxFall":12,"breakParticles":"object::dust"}},
+    "rock2": {"class":"RockSpawner","code":"0R1","props":{"sprite":"sprite::rock","interval":140,"gravity":0.22,"maxFall":4.5,"breakParticles":"object::dust"}},
+    "shield": {"class":"Shield","code":"0S0","props":{"sprite":"sprite::shield","worn":"","pickSound":"sound::shieldUp","takeParticles":""}},
+    "sign": {"class":"Sign","code":"nM0","props":{"sprite":"sprite::sign"}},
+    "sparkle": {"class":"ParticleSystem","code":"0Z0","props":{"sprite":"","count":14,"rate":0,"interval":60,"speed":2.2,"speedJitter":0.5,"angle":-90,"spread":360,"gravity":0.04,"drag":0.93,"life":26,"lifeJitter":0.3,"radius":0,"sizeStart":3.5,"sizeEnd":0,"colorStart":"#fff6a8","colorEnd":"#ffb300","fade":true,"shape":"circle","glow":true}},
+    "worm": {"class":"Worm","props":{"sprite":"sprite::worm","body":"body","tail":"tail","head":"headRight","headLeft":"headLeft","segments":14,"tailScale":0.32,"speed":3,"jump":10.5}}
+  }
+}

@@ -1,0 +1,33 @@
+{
+  "_comment": "An asset pack: everything the level editor draws with, in one folder. The sheet, the object manifest, the backgrounds and the sound sets beside this file are built by the scripts in tools/gen/, and the editor reads nothing outside the pack it was opened on. A level pack downloaded from the editor is given a copy of whatever it uses.",
+  "tileset": {
+    "texture": "tiles/tiles.png",
+    "size": 64,
+    "row_0": "01234567890123      ",
+    "row_1": "##########////TU*o$~",
+    "row_C": "SSSSSSSSSS0123 ^    ",
+    "row_D": "TTTTTTTTTTTTTTTTDDDD",
+    "col_0": "0123456789"
+  },
+  "objects": { "manifest": "objects/objects.json" },
+  "backgrounds": {
+    "dir": "backgrounds/",
+    "items": [
+      { "file": "clouds.png", "name": "Clouds", "color": "#6bb8e8", "scroll": 0.25 },
+      { "file": "stars.png", "name": "Stars", "color": "#140c1c", "scroll": 0.15 },
+      { "file": "bricks.png", "name": "Bricks", "color": "#3a2b45", "scroll": 0.8 },
+      { "file": "leaves.png", "name": "Leaves", "color": "#1f3a24", "scroll": 0.45 },
+      { "file": "cave.png", "name": "Cave", "color": "#241a2e", "scroll": 0.6 },
+      { "file": "rain.png", "name": "Rain", "color": "#2a3346", "scroll": 0.9 }
+    ]
+  },
+  "sounds": {
+    "dir": "sounds/",
+    "default": "default.json",
+    "items": [
+      { "file": "soft.json", "name": "Soft" },
+      { "file": "retro.json", "name": "Retro" },
+      { "file": "clips.json", "name": "Recorded" }
+    ]
+  }
+}

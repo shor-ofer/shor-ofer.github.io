@@ -1,0 +1,8 @@
+{
+  "frames": 6,
+  "fps": 3,
+  "tiles": 2,
+  "pivot": [0.5, 0.5],
+  "mask": "flagGlow",
+  "collision": { "shape": "circle", "r": 14 }
+}

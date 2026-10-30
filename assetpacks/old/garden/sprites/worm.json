@@ -1,0 +1,6 @@
+{
+  "frames": 8,
+  "tiles": 1,
+  "pivot": [0.5, 0.5],
+  "parts": { "body": [0, 4], "headLeft": 6, "headRight": 7, "tail": 5 }
+}

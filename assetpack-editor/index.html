@@ -1,0 +1,372 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Asset Pack Creator — Warm the Worm</title>
+<link rel="stylesheet" href="css/app.css">
+<!-- last: the look picked (css/themes.js) — Classic is none; shared with the other tool -->
+<link id="themeCss" rel="stylesheet">
+<script src="../css/themes.js"></script>
+</head>
+<body>
+
+<header class="top">
+  <h1 class="logo">Asset<span>Pack</span></h1>
+  <!-- not a <label>: a click on the select would reach the label too, which
+       clicks the select again and shuts the list it just opened -->
+  <div class="sprpick packwrap"><button type="button" class="namebox packpick" id="packPick" aria-haspopup="listbox" title="The packs in this browser — open one, make a new one, or duplicate this one. Double-click to rename this one"><span>pack</span><b id="packPickName"></b><span class="caret">▾</span></button><label class="namebox packrename" hidden><span>pack</span><input id="packName" value="My Pack" aria-label="Rename the pack"></label></div>
+  <span class="grow"></span>
+  <button class="btn" id="undoBtn" title="Undo (Ctrl+Z)" disabled>↶</button>
+  <button class="btn" id="redoBtn" title="Redo (Ctrl+Y)" disabled>↷</button>
+  <button class="btn" id="importBtn" title="Add a pack to this browser — one in assetpacks/index.json, a folder or URL, or a .zip">Import…</button>
+  <button class="btn primary" id="exportBtn" title="Download the open pack as name.zip — clears its *">⬇ Export .zip</button>
+  <button class="btn" id="revertBtn" title="Put the open pack back as it was when it was last exported or imported" disabled>⟲ Revert</button>
+  <button class="btn" id="deleteBtn">Remove</button>
+  <button class="btn" id="levelBtn" title="Open the level editor on this pack as it stands now">Open in level editor ↗</button>
+</header>
+
+<!-- shown instead of everything else while the browser keeps no pack -->
+<section class="nopack" id="noPack">
+  <h2>No packs in this browser</h2>
+  <p class="hint">Import one, or make a new one from the pack button.</p>
+  <button class="btn primary" id="noPackImport">Import…</button>
+</section>
+
+<nav class="tabs" id="tabs">
+  <button type="button" class="tabarrow" id="tabsLeft" aria-label="Scroll the tabs left" hidden>‹</button>
+  <div class="tabstrip" id="tabStrip">
+  <button class="tab on" data-tab="gameobjects">Objects</button>
+  <button class="tab" data-tab="tiles">Tiles</button>
+  <button class="tab" data-tab="objects">Sprites</button>
+  <button class="tab" data-tab="backgrounds">Backgrounds</button>
+  <button class="tab" data-tab="sounds">Sounds</button>
+  <button class="tab" data-tab="pack">Pack</button>
+  </div>
+  <button type="button" class="tabarrow" id="tabsRight" aria-label="Scroll the tabs right" hidden>›</button>
+  <button type="button" class="btn sm" id="backBtn" disabled>← Back</button>
+</nav>
+
+<!-- ---------------- sprites ---------------- -->
+<main class="page" data-page="objects">
+  <aside class="rail">
+    <div class="panel">
+      <div class="ph"><h2>Sprites</h2><button class="btn sm" id="objAdd">+ New</button></div>
+      <div class="list" id="objList"></div>
+    </div>
+  </aside>
+
+  <section class="work" id="objWork">
+    <div class="panel">
+      <div class="ph">
+        <h2>Frames</h2>
+        <span class="grow"></span>
+        <button class="btn sm" id="frAdd">+ Images</button>
+        <button class="btn sm" id="frStrip">Slice a strip…</button>
+        <button class="btn sm" id="frDraw">✎ Draw</button>
+      </div>
+      <div class="pb">
+        <div class="parts" id="objParts"></div>
+        <div class="lanes" id="objLanes"></div>
+        <p class="hint">A part is a named run of frames — an object's class picks one by name, like a plant's <code>bud</code>. Click a frame to pick it, Ctrl+click for several; drag frames between parts, double-click one to paint it. <b>Ctrl+C</b> copies the picked frames and <b>Ctrl+V</b> adds them to the part under the pointer — pixels copied in the pixel editor or the Tiles tab paste in as a new frame, and a copied frame pastes into the pixel editor as pixels.</p>
+        <p class="hint" id="partNames" hidden></p>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="ph"><h2>Properties</h2><span class="grow"></span><span class="mono" id="objCalc"></span></div>
+      <div class="pb insp" id="objProps"></div>
+    </div>
+  </section>
+
+  <aside class="side">
+    <div class="panel">
+      <div class="ph"><h2>Preview &amp; shape</h2><span class="grow"></span><span class="mono" id="pvRead"></span></div>
+      <div class="pb">
+        <div class="stage shape-stage" id="objStage"><canvas id="objPv" tabindex="0" aria-label="Pivot and collision editor"></canvas></div>
+        <div class="row gap">
+          <button class="btn sm" id="pvPlay">Pause</button>
+          <label class="toggle"><input type="checkbox" id="pvGrid" checked> Tile grid</label>
+          <label class="toggle" id="pvGlowWrap" hidden><input type="checkbox" id="pvGlow" checked> Glow</label>
+          <button class="pairdot" id="pvPair" hidden title="Pairing colour — what it glows in beside a key or door of that number"></button>
+          <span class="grow"></span>
+          <div class="seg zoomseg" id="pvZoom" title="Zoom">
+            <button data-z="-1" aria-label="Zoom out">−</button><button data-z="0" aria-label="Fit">Fit</button><button data-z="1" aria-label="Zoom in">+</button>
+          </div>
+        </div>
+        <div id="objShape" class="shape"></div>
+      </div>
+    </div>
+  </aside>
+</main>
+
+<!-- ---------------- objects ---------------- -->
+<main class="page on" data-page="gameobjects">
+  <aside class="rail">
+    <div class="panel">
+      <div class="ph"><h2>Objects</h2><button class="btn sm" id="goAdd">+ New</button></div>
+      <div class="seg listview" id="goView" role="group" aria-label="Show the objects">
+        <button type="button" data-view="list" title="Every object in one list">☰ List</button>
+        <button type="button" data-view="class" title="Grouped by class, each group opened and closed on its own">▤ By class</button>
+      </div>
+      <div class="list" id="goList"></div>
+    </div>
+  </aside>
+  <section class="work">
+    <div class="panel">
+      <div class="ph"><h2 id="goTitle">Object</h2></div>
+      <div class="pb" id="goForm"></div>
+    </div>
+  </section>
+  <aside class="side">
+    <div class="panel">
+      <div class="ph"><h2>Looks like</h2></div>
+      <div class="pb">
+        <div class="stage" id="goStage"><canvas id="goPv"></canvas></div>
+        <p class="hint" id="goAbout"></p>
+        <p class="hint">An object is what a level places: one of the game's classes, the codes a map block names it by, and a value for each property the class reads. Its look is a sprite, made on the Sprites tab.</p>
+      </div>
+    </div>
+  </aside>
+</main>
+
+<!-- ---------------- tiles ---------------- -->
+<main class="page" data-page="tiles">
+  <section class="work wide">
+    <div class="panel">
+      <div class="ph"><h2>Terrain sheet</h2><span class="grow"></span>
+        <button class="btn sm" id="tilesNew">✎ New sheet…</button>
+        <button class="btn sm" id="tilesLoad">Load tiles.png…</button></div>
+      <div class="pb">
+        <p class="hint">A row per kind of tile and a column per colour, 0 to 9. A map block names a tile by its row and column, so row <code>1#</code> column <code>1</code> is <code>1#1</code>. The button beside each row says what it collides as.</p>
+        <div class="sheetwrap" id="tilesWrap"><div class="sheetrows" id="tilesRows"></div><canvas id="tilesCv"></canvas></div>
+        <div class="row gap"><p class="mono" id="tilesDims">No sheet loaded</p><span class="grow"></span><span class="mono" id="tilesHover"></span></div>
+        <p class="hint">Click a tile to paint it. Over a tile, <b>Ctrl+C</b> copies it and <b>Ctrl+V</b> pastes onto it; <b>Ctrl+Shift+V</b> fills the whole row, each column recoloured to its own colour.</p>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="ph"><h2>Sheet</h2></div>
+      <div class="pb insp" id="tilesProps"></div>
+    </div>
+  </section>
+</main>
+
+<!-- ---------------- backgrounds ---------------- -->
+<main class="page" data-page="backgrounds">
+  <section class="work wide">
+    <div class="panel">
+      <div class="ph"><h2>Backgrounds</h2><span class="grow"></span>
+        <button class="btn sm" id="bgDraw">✎ Draw</button>
+        <button class="btn sm" id="bgAdd">+ Images…</button></div>
+      <div class="pb">
+        <p class="hint">Tiling sprites a level can sit in front of. Transparent art works best — the level's own colour shows through, so one sheet suits several moods.</p>
+        <div class="bglist" id="bgList"></div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<!-- ---------------- sounds ---------------- -->
+<main class="page" data-page="sounds">
+  <aside class="rail">
+    <div class="panel">
+      <div class="ph"><h2>Sounds</h2><span class="grow"></span><button class="btn sm" id="sndAdd">+ New</button></div>
+      <div class="seg listview" id="sndView" role="group" aria-label="Show the sounds">
+        <button type="button" data-view="list" title="Every sound in one list">☰ List</button>
+        <button type="button" data-view="kind" title="Grouped by kind — synth, clip, track — each group opened and closed on its own">▤ By type</button>
+      </div>
+      <div class="list" id="sndList"></div>
+    </div>
+    <div class="panel">
+      <div class="ph"><h2>Add</h2></div>
+      <div class="pb col gap">
+        <button class="btn sm" id="sndMusic">+ Music track…</button>
+        <button class="btn sm" id="sndPreset">+ From a preset…</button>
+      </div>
+    </div>
+  </aside>
+
+  <section class="work" id="sndWork">
+    <div class="panel">
+      <div class="ph"><h2 id="sndTitle">Nothing selected</h2><span class="grow"></span>
+        <button class="btn sm" id="sndPlay">▶ Play</button>
+        <button class="btn sm" id="sndCopy" title="Copy this sound as JSON (Ctrl+C)">Copy</button>
+        <button class="btn sm" id="sndPaste" title="Replace its layers from JSON (Ctrl+V)">Paste</button>
+        <button class="btn sm danger" id="sndDel">Delete sound</button></div>
+      <div class="pb">
+        <canvas id="sndScope"></canvas>
+        <div class="tl">
+          <canvas id="sndTl"></canvas>
+          <p class="tlhint" id="sndTlHint"></p>
+        </div>
+        <p class="hint" id="sndUsers"></p>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="ph">
+        <div class="chips" id="sndChips"></div>
+        <span class="grow"></span>
+        <button class="btn sm ghost" id="layOsc">+ Oscillator</button>
+        <button class="btn sm ghost" id="layNoise">+ Noise</button>
+      </div>
+      <div class="pb">
+        <div class="insp" id="sndLayer"></div>
+        <div class="inspfoot">
+          <button class="btn sm" id="laySolo">Play layer only</button>
+          <button class="btn sm" id="layDup">Duplicate layer</button>
+          <button class="btn sm danger" id="layDel" title="Delete">Delete layer</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="ph"><h2>The whole sound</h2></div>
+      <div class="pb"><div class="insp" id="sndProps"></div></div>
+    </div>
+  </section>
+</main>
+
+<!-- ---------------- pack ---------------- -->
+<main class="page" data-page="pack">
+  <section class="work wide">
+    <div class="panel">
+      <div class="ph"><h2>What's in the pack</h2></div>
+      <div class="pb"><div id="packSummary"></div></div>
+    </div>
+    <div class="panel">
+      <div class="ph"><h2>Files it will write</h2></div>
+      <div class="pb"><pre class="code" id="packTree"></pre>
+        <p class="hint">Unzip this into <code>assetpacks/</code> beside the others, then open the level editor with <code>npm run editor -- &lt;name&gt;</code>.</p>
+      </div>
+    </div>
+  </section>
+</main>
+
+<!-- ---------------- paint ---------------- -->
+<dialog id="paint">
+  <div class="pt-head">
+    <strong id="ptWhere"></strong><span class="mono" id="ptIdx"></span>
+    <span class="hint" id="ptMsg" aria-live="polite"></span>
+    <span class="grow"></span>
+    <button class="btn sm" id="ptPrev">‹</button><button class="btn sm" id="ptNext">›</button>
+    <button class="btn sm" id="ptNew">+ Frame</button>
+    <button class="btn sm" id="ptCopy">Duplicate</button>
+    <button class="btn sm danger" id="ptDel">🗑 Delete frame</button>
+    <button class="btn sm primary" id="ptDone">Done</button>
+  </div>
+  <div class="pt-body">
+    <div class="pt-tools">
+      <div class="tools" id="ptTools"></div>
+      <div class="pal" id="ptPal"></div>
+      <div class="row gap"><input type="color" id="ptColor" value="#7fd96a"><span class="mono" id="ptHex"></span>
+        <button class="btn sm" id="ptTransp" title="Draw fully transparent pixels">∅</button></div>
+      <label class="ctl"><div class="row"><span>Opacity</span><output id="ptAlphaV"></output></div>
+        <input type="range" id="ptAlpha" min="0" max="100" value="100"></label>
+      <div class="row gap" id="ptSize">
+        <button class="btn sm on" data-s="1">1px</button><button class="btn sm" data-s="2">2px</button><button class="btn sm" data-s="3">3px</button>
+      </div>
+      <div class="row gap"><button class="btn sm" id="opUndo" title="Undo (Ctrl+Z)">↶</button><button class="btn sm" id="opRedo" title="Redo (Ctrl+Y)">↷</button>
+        <button class="btn sm" id="opFh" title="Flip left to right">⇆</button><button class="btn sm" id="opFv" title="Flip top to bottom">⇅</button>
+        <button class="btn sm" id="opRotL" title="Rotate a quarter turn left">⟲</button><button class="btn sm" id="opRotR" title="Rotate a quarter turn right">⟳</button>
+        <button class="btn sm" id="opClear" title="Empty this frame — or only the selected pixels">Clear</button></div>
+      <div class="row gap"><button class="btn sm" id="opCopy" title="Copy every pixel of this frame (Ctrl+C)">Copy</button>
+        <button class="btn sm" id="opPaste" title="Replace this frame with the copied pixels — or an image copied anywhere else (Ctrl+V)">Paste</button></div>
+      <div class="row gap">
+        <button class="btn sm" data-shift="-1,0">←</button><button class="btn sm" data-shift="1,0">→</button>
+        <button class="btn sm" data-shift="0,-1">↑</button><button class="btn sm" data-shift="0,1">↓</button>
+      </div>
+      <label class="toggle"><input type="checkbox" id="ptMirror"> Mirror</label>
+      <label class="toggle"><input type="checkbox" id="ptGrid" checked> Grid</label>
+      <label class="toggle"><input type="checkbox" id="onOn" checked> Onion skin</label>
+      <label class="ctl"><span>Previous frames</span>
+        <select id="onPrev"><option value="1">1</option><option value="2">2</option><option value="3">3</option></select></label>
+      <label class="toggle"><input type="checkbox" id="onNext"> Next frame too</label>
+      <label class="ctl"><div class="row"><span>Onion opacity</span></div>
+        <input type="range" id="onOp" min="10" max="80" value="40"></label>
+    </div>
+    <div class="pt-stage" id="ptStage"><canvas id="pc"></canvas></div>
+    <div class="pt-aside">
+      <canvas id="pmini"></canvas>
+      <div class="row gap"><button class="btn sm" id="ptZin">+</button><button class="btn sm" id="ptZout">−</button><button class="btn sm" id="ptZfit">Fit</button></div>
+    </div>
+  </div>
+</dialog>
+
+<dialog id="bgview">
+  <div class="pt-head">
+    <h3 id="bvName"></h3><span class="mono" id="bvSize"></span><span class="grow"></span>
+    <button class="btn sm" id="bvClose">Close</button>
+  </div>
+  <div class="bv-stage" id="bvStage"></div>
+</dialog>
+
+<div id="toast" hidden></div>
+
+<dialog id="ask">
+  <form method="dialog" class="askform">
+    <h3 id="askTitle"></h3>
+    <div id="askBody" class="col gap"></div>
+    <div class="row gap" style="justify-content:flex-end">
+      <button class="btn" value="">Cancel</button>
+      <button class="btn primary" value="ok" id="askOk">OK</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- the engine's own board plays the previews, so what is heard here is what
+     the game will make of these defs; it wants a music element to exist -->
+<audio id="bgMusic" loop preload="auto"></audio>
+
+<!-- the pack store the three tools share, and the worker that serves it -->
+<script src="../src/js/packstore.js"></script>
+<script>packStore.boot();</script>
+<script src="js/util.js"></script>
+<script src="js/listview.js"></script>
+<!-- the game's own classes: what an object can be, and the properties each
+     reads. Loaded for their declarations only; nothing here runs the game. -->
+<script src="../src/js/entity.js"></script>
+<script src="../src/js/enemy.js"></script>
+<script src="../src/js/beetle.js"></script>
+<script src="../src/js/moth.js"></script>
+<script src="../src/js/frog.js"></script>
+<script src="../src/js/pickup.js"></script>
+<script src="../src/js/treasure.js"></script>
+<script src="../src/js/shield.js"></script>
+<script src="../src/js/lantern.js"></script>
+<script src="../src/js/key.js"></script>
+<script src="../src/js/platform.js"></script>
+<script src="../src/js/platform-stop.js"></script>
+<script src="../src/js/rock.js"></script>
+<script src="../src/js/rock-spawner.js"></script>
+<script src="../src/js/plant.js"></script>
+<script src="../src/js/portal.js"></script>
+<script src="../src/js/checkpoint.js"></script>
+<script src="../src/js/flag.js"></script>
+<script src="../src/js/door.js"></script>
+<script src="../src/js/sign.js"></script>
+<script src="../src/js/decoration.js"></script>
+<script src="../src/js/particles.js"></script>
+<script src="../src/js/worm.js"></script>
+<script src="../src/js/classes.js"></script>
+<script src="../src/js/sprite-templates.js"></script>
+<script src="js/zip.js"></script>
+<script src="js/db.js"></script>
+<script src="js/pack.js"></script>
+<script src="js/atlas.js"></script>
+<script src="js/paint.js"></script>
+<script src="js/objects.js"></script>
+<script src="js/shape.js"></script>
+<script src="js/gameobjects.js"></script>
+<script src="js/tiles.js"></script>
+<script src="js/backgrounds.js"></script>
+<script src="../src/js/sound.js"></script>
+<script src="js/sounds.js"></script>
+<script src="js/import.js"></script>
+<script src="js/export.js"></script>
+<script src="js/history.js"></script>
+<script src="js/listclip.js"></script>
+<script src="js/nav.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

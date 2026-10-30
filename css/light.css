@@ -1,0 +1,174 @@
+/* ---------- Light: Blender's shape, on light greys ----------
+   Loaded last by the asset pack creator and the level editor, over their own
+   styles (picked in css/themes.js). The shape is css/blender.css's — small
+   type and widgets, raised buttons over recessed fields, panels with a header
+   strip on a region, active toggles filled with the accent, workspace tabs —
+   on a light palette: pale greys, dark text, a blue accent. The tools'
+   palette is set to it, so their own styles take it too. The level being
+   drawn keeps its own colours. */
+:root {
+  /* the tools' palette, light: the pages' styles read these */
+  --bg: #d9dbe2; --panel: #eceef3; --panel2: #e1e4eb; --line: #b9bdc9; --line2: #9aa0b0;
+  --fg: #1f2230; --muted: #5d6275;
+  --amber: #2f6fd8;                  /* the accent: a strong blue, readable on light */
+  --pink: #c8384f;                   /* what warns */
+  --mint: #1f8a55; --sky: #2b7bc4;
+  /* the shades its widgets sit in */
+  --region: #cfd2da;                 /* behind the panels */
+  --widget: #f7f8fb;                 /* a button's face */
+  --widget-hi: #ffffff;              /* ... under the pointer */
+  --widget-lo: #e3e6ed;              /* ... pressed */
+  --field: #ffffff;                  /* a text or number field */
+  --outline: #a6abba;                /* every widget's rim */
+  --accent-fill: #3d7be0;
+  --accent-rim: #2f66c2;
+  --accent-text: #ffffff;
+  --radius: 4px;
+  --h: 22px;                         /* a widget's height */
+}
+
+html { font-size: 12px; }
+body { font-size: 12px; line-height: 1.35; }
+
+/* ---------- widgets ---------- */
+/* a raised button: a faint top light, a dark rim */
+button, .btn {
+  font-size: 12px; line-height: 1.2; min-height: var(--h); padding: 3px 10px;
+  color: var(--fg); background: linear-gradient(#ffffff, #00000008) var(--widget);
+  border: 1px solid var(--outline); border-radius: var(--radius);
+  box-shadow: inset 0 1px 0 #ffffff, 0 1px 0 #00000014; cursor: pointer;
+}
+button:hover, .btn:hover { background-color: var(--widget-hi); border-color: var(--outline); }
+button:active, .btn:active { background: var(--widget-lo); box-shadow: inset 0 1px 2px #0000002a; }
+/* on: filled with the accent, as Blender fills a pressed toggle */
+button.on, .btn.on { background: var(--accent-fill); border-color: var(--accent-rim); color: var(--accent-text); box-shadow: none; }
+/* the one to press: solid blue, as Blender's highlighted buttons */
+button.go, .btn.primary { background: var(--accent-fill); color: var(--accent-text); border-color: #2d4e80; font-weight: 600; box-shadow: inset 0 1px 0 #ffffff33; }
+button.go:hover, .btn.primary:hover { background: var(--accent-rim); }
+button.danger, button.warn, .btn.warn { color: var(--pink); }
+button.danger:hover, button.warn:hover, .btn.warn:hover, .btn.danger:hover { color: var(--pink); border-color: var(--pink); }
+.btn.sm { min-height: 20px; padding: 2px 8px; font-size: 11.5px; }
+
+/* a field: sunk in, darker than the panel it is on */
+input[type=text], input[type=number], input:not([type]), input[type=search], textarea {
+  font-size: 12px; min-height: var(--h); padding: 3px 7px; color: var(--fg);
+  background: var(--field); border: 1px solid var(--outline); border-radius: var(--radius);
+  box-shadow: inset 0 1px 1px #0000001a;
+}
+textarea { min-height: 0; }
+input[type=number] { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+input:focus, textarea:focus, select:focus { outline: none; border-color: var(--accent-rim); box-shadow: inset 0 1px 1px #0000001a, 0 0 0 1px var(--accent-rim); }
+/* a dropdown: a raised widget with its own small arrow, like Blender's */
+select {
+  font-size: 12px; min-height: var(--h); padding: 2px 22px 2px 8px; color: var(--fg);
+  appearance: none; -webkit-appearance: none; cursor: pointer;
+  background: var(--widget) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5'%3E%3Cpath d='M0 0h8L4 5z' fill='%235d6275'/%3E%3C/svg%3E") no-repeat right 8px center;
+  border: 1px solid var(--outline); border-radius: var(--radius); box-shadow: inset 0 1px 0 #ffffff, 0 1px 0 #00000014;
+}
+select:hover { background-color: var(--widget-hi); }
+select option { background: var(--panel); color: var(--fg); }
+input[type=checkbox] { accent-color: var(--amber); width: 13px; height: 13px; margin: 0; }
+input[type=range] { accent-color: var(--amber); height: 14px; }
+input[type=color] { min-height: var(--h); height: var(--h); padding: 1px; border: 1px solid var(--outline); border-radius: var(--radius); background: var(--field); }
+
+/* a row of toggles, joined: Blender's enum buttons */
+.seg { display: flex; gap: 0; border: 0; border-radius: var(--radius); overflow: visible; }
+.seg button { flex: 1; border-radius: 0; margin-left: -1px; min-height: var(--h); padding: 2px 6px;
+  background: linear-gradient(#ffffff, #00000008) var(--widget); border: 1px solid var(--outline); color: var(--fg); }
+.seg button:first-child { margin-left: 0; border-radius: var(--radius) 0 0 var(--radius); }
+.seg button:last-child { border-radius: 0 var(--radius) var(--radius) 0; }
+.seg button.on { position: relative; z-index: 1; background: var(--accent-fill); border-color: var(--accent-rim); color: var(--accent-text); }
+
+.hint { font-size: 11px; color: var(--muted); line-height: 1.4; }
+code { font-size: 11px; }
+
+/* thin scrollbars, as Blender's */
+/* in Chrome, a scrollbar-width set anywhere wins over ::-webkit-scrollbar, so
+   it is only for a browser without that (Firefox) */
+@supports not selector(::-webkit-scrollbar) { * { scrollbar-width: thin; scrollbar-color: var(--line2) transparent; } }
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb { background: var(--line2); border-radius: 5px; border: 2px solid transparent; background-clip: padding-box; }
+::-webkit-scrollbar-track { background: transparent; }
+
+/* ---------- the bar on top ---------- */
+.top { gap: 6px; padding: 4px 8px; background: var(--panel); border-bottom: 1px solid var(--outline); min-height: 32px; }
+.top .logo, .logo { font-size: 14px; margin-right: 8px; }
+.namebox { gap: 6px; padding: 0 8px; min-height: var(--h); border-radius: var(--radius);
+  background: var(--field); border: 1px solid var(--outline); box-shadow: inset 0 1px 1px #0000001a; }
+.namebox, .namebox select, .namebox input[type=text], .namebox input, .namebox b { font-size: 12px; }
+.namebox > span, .namebox span { font-size: 11px; }
+.namebox select, .namebox input, .namebox input[type=text] { min-height: 0; box-shadow: none; background-color: transparent; border: 0; }
+.namebox select { padding-right: 18px; background-position: right 2px center; }
+.top button, .top .btn { min-height: var(--h); }
+
+/* the workspace tabs, under the bar */
+.tabs { gap: 2px; padding: 3px 8px 0; background: var(--panel); border-bottom: 1px solid var(--outline); top: 32px; }
+.tab { padding: 4px 14px; font-size: 12px; color: var(--muted); border: 1px solid transparent; border-bottom: 0;
+  border-radius: var(--radius) var(--radius) 0 0; margin-bottom: -1px; }
+.tab:hover { color: var(--fg); background: var(--widget-lo); }
+.tab.on { color: var(--fg); background: var(--region); border-color: var(--outline); border-bottom-color: var(--region); }
+
+/* ---------- panels on a darker region ---------- */
+html, body { background: var(--region); }
+.page.on { gap: 4px; padding: 4px; }
+.rail, .work, .side { gap: 4px; }
+.panel { background: var(--panel); border: 1px solid var(--outline); border-radius: var(--radius); }
+/* a panel's header strip */
+.ph { padding: 3px 8px; min-height: 26px; background: linear-gradient(#ffffff99, transparent) var(--panel2);
+  border-bottom: 1px solid var(--outline); border-radius: var(--radius) var(--radius) 0 0; }
+.ph h2 { font-size: 12px; font-weight: 600; letter-spacing: 0; text-transform: none; color: var(--fg); }
+.ph h2::before { content: '▾'; font-size: 9px; color: var(--muted); margin-right: 6px; }
+.pb { padding: 6px 8px; }
+
+/* the level editor's side panel: each group a panel, its label the header */
+#panel { background: var(--region); border-right: 1px solid var(--outline); padding: 4px; }
+#panel .group { background: var(--panel); border: 1px solid var(--outline); border-radius: var(--radius); margin: 0 0 4px; padding: 0 8px 8px; }
+#panel .group > label { display: flex; align-items: center; gap: 6px; margin: 0 -8px 6px; padding: 4px 8px;
+  font-size: 12px; font-weight: 600; letter-spacing: 0; text-transform: none; color: var(--fg);
+  background: linear-gradient(#ffffff99, transparent) var(--panel2); border-bottom: 1px solid var(--outline);
+  border-radius: var(--radius) var(--radius) 0 0; }
+#panel .group > label.fold::before { color: var(--muted); }
+#panel .group.shut { padding-bottom: 0; }
+#panel .group.shut > label { margin-bottom: 0; border-bottom: 0; border-radius: var(--radius); }
+.row { gap: 4px; }
+#topbar { background: var(--panel); border-bottom: 1px solid var(--outline); padding: 4px 6px; gap: 4px; }
+#statusbar, #status { background: var(--panel); border-top: 1px solid var(--outline); font-size: 11px; }
+
+/* property rows and palettes, tighter */
+.ctl { gap: 2px; }
+.ctl label, .ctl > span, .ctl .row span { font-size: 11.5px; }
+.insp { gap: 6px 12px; }
+.subh { font-size: 12px; font-weight: 600; text-transform: none; letter-spacing: 0; color: var(--fg); margin: 10px 0 6px; }
+#palette .tile, #objPalette .tile, #bgList .tile, .propRow { border-radius: 3px; border-color: var(--outline); background: var(--field); }
+#palette .tile.on, #objPalette .tile.on, #bgList .tile.on, .propRow.on { border-color: var(--accent-rim); background: var(--accent-fill); }
+
+/* ---------- lists: compact rows, the picked one filled ---------- */
+.list { gap: 0; padding: 2px; }
+.item { padding: 2px 8px; min-height: 22px; border-radius: 3px; background: transparent; border: 0; box-shadow: none; }
+.item:hover { background: var(--widget-lo); }
+.item.on { background: var(--accent-fill); box-shadow: none; }
+.item.on b, .item.on small { color: var(--accent-text); }
+.item b { font-size: 12px; }
+.item small { font-size: 11px; }
+.lgroup > summary { padding: 3px 6px; border-radius: 3px; font-size: 11.5px; }
+.lgroup .items { gap: 0; }
+
+/* ---------- dialogs: small panels ---------- */
+dialog#ask, #chooseCard, #askCard { border-radius: 6px; border-color: var(--outline); box-shadow: 0 10px 30px #0003; }
+.askform, #chooseCard { gap: 8px; padding: 12px; }
+.askform h3, #chooseCard h3 { font-size: 13px; }
+#chooseCard button { min-height: var(--h); padding: 3px 12px; font-size: 12px; border-radius: var(--radius); }
+#chooseCard select { font-size: 12px; }
+
+/* ---------- Blender's greys reach a few colours the pages write out ---------- */
+.logo, .top .logo { color: var(--fg); }
+.logo span, .top .logo span { color: var(--amber); }
+.namebox input, .namebox input[type=text] { color: var(--fg); }
+.tab.on { color: var(--fg); }
+.ph h2::before { color: var(--muted); }
+.checker, .frame, .stage, .pt-stage, .sheetwrap, .bgprev { background-color: #dfe1e8; }
+
+/* the level editor's board sits on the region, its own colours its own */
+#scroller { background: var(--region); }
+/* a pressed toggle's text, and the dark-on-amber text the pages write, on light */
+.lgroup > summary .n { background: var(--widget-lo); }

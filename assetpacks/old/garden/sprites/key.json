@@ -1,0 +1,8 @@
+{
+  "frames": 6,
+  "fps": 6,
+  "tiles": 1.3125,
+  "pivot": [0.5, 0.5],
+  "mask": "keyGlow",
+  "collision": { "shape": "circle", "r": 9 }
+}

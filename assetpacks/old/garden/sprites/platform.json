@@ -1,0 +1,8 @@
+{
+  "frames": 6,
+  "fps": 7.5,
+  "tiles": 1.8125,
+  "pivot": [0.5, 0.328125],
+  "slice": 12,
+  "collision": { "shape": "box", "w": 32, "h": 10 }
+}

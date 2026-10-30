@@ -1,0 +1,8 @@
+{
+  "frames": 6,
+  "fps": 8.6,
+  "tiles": 1.25,
+  "pivot": [0.5, 0.5],
+  "mask": "portalGlow",
+  "collision": { "shape": "circle", "r": 14 }
+}

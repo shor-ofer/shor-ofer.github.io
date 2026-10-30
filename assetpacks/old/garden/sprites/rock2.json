@@ -1,0 +1,5 @@
+{
+  "copy": "rock",
+  "collision": { "shape": "circle", "r": 9 },
+  "fall": { "gravity": 0.22, "max": 4.5 }
+}

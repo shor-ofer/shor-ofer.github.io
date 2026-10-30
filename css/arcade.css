@@ -1,0 +1,100 @@
+/* ---------- Arcade: a game console's look, in the tools' own colours ----------
+   Loaded last over the asset pack creator's and the level editor's own
+   styles (picked in css/themes.js). The palette stays theirs; this makes it
+   square and chunky — monospace type, 2px rims, hard shadows that a press
+   pushes in, panels framed like a cabinet's screen. */
+:root {
+  --shadow: #07040f;
+  --face: #2b2249;
+  --face-hi: #3a2f5e;
+  --well: #0d0919;               /* fields: a dark well */
+  --rim: var(--line2);
+  --h: 26px;
+}
+
+html, body { font-family: var(--mono); font-size: 12px; }
+html, body { background: #0f0b1d; }
+body { line-height: 1.4; }
+
+/* ---------- widgets ---------- */
+button, .btn {
+  font-family: var(--mono); font-size: 11.5px; letter-spacing: .02em; text-transform: uppercase;
+  min-height: var(--h); padding: 3px 10px; color: var(--fg); background: var(--face);
+  border: 2px solid var(--rim); border-radius: 0; box-shadow: 3px 3px 0 var(--shadow); cursor: pointer;
+  transition: transform .05s, box-shadow .05s;
+}
+button:hover, .btn:hover { background: var(--face-hi); border-color: var(--amber); }
+/* a press pushes it into its shadow */
+button:active, .btn:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 var(--shadow); }
+button.on, .btn.on { background: var(--amber); border-color: var(--amber); color: #1c1430; }
+button.go, .btn.primary { background: var(--pink); border-color: var(--pink); color: #1c1430; font-weight: 700; }
+button.go:hover, .btn.primary:hover { background: #ff8cc0; }
+button.danger, button.warn, .btn.warn { color: var(--pink); border-color: var(--pink); }
+.btn.sm { min-height: 22px; padding: 2px 8px; font-size: 11px; }
+
+input[type=text], input[type=number], input:not([type]), input[type=search], textarea, select {
+  font-family: var(--mono); font-size: 12px; min-height: var(--h); padding: 3px 8px; color: var(--mint);
+  background: var(--well); border: 2px solid var(--rim); border-radius: 0; box-shadow: inset 2px 2px 0 #000;
+}
+textarea { min-height: 0; }
+select { cursor: pointer; color: var(--fg); }
+select option { background: var(--panel); color: var(--fg); }
+input:focus, textarea:focus, select:focus { outline: none; border-color: var(--amber); }
+input[type=checkbox] { accent-color: var(--pink); width: 14px; height: 14px; }
+input[type=range] { accent-color: var(--pink); }
+input[type=color] { border: 2px solid var(--rim); border-radius: 0; padding: 1px; background: var(--well); }
+
+.seg { gap: 4px; border: 0; overflow: visible; }
+.seg button { flex: 1; border-radius: 0; border: 2px solid var(--rim); }
+.seg button.on { background: var(--amber); border-color: var(--amber); color: #1c1430; }
+
+.hint { font-size: 11px; color: var(--muted); }
+
+@supports not selector(::-webkit-scrollbar) { * { scrollbar-width: thin; scrollbar-color: var(--pink) #0f0b1d; } }
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb { background: var(--pink); }
+::-webkit-scrollbar-track { background: #0f0b1d; }
+
+/* ---------- the bar on top: a marquee ---------- */
+.top { background: #0f0b1d; border-bottom: 3px solid var(--pink); gap: 8px; padding: 6px 10px; }
+.top .logo, .logo { font-size: 18px; letter-spacing: .04em; text-transform: uppercase; text-shadow: 2px 2px 0 var(--shadow); }
+.namebox { background: var(--well); border: 2px solid var(--rim); border-radius: 0; box-shadow: inset 2px 2px 0 #000; padding: 1px 8px; min-height: var(--h); }
+.namebox > span, .namebox span { color: var(--pink); text-transform: uppercase; font-size: 10.5px; }
+.namebox select, .namebox input, .namebox input[type=text] { min-height: 0; border: 0; box-shadow: none; background-color: transparent; padding: 1px 0; }
+.namebox input[type=text], .namebox input { color: var(--amber); }
+
+.tabs { background: #0f0b1d; border-bottom: 2px solid var(--rim); gap: 4px; padding: 6px 10px 0; }
+.tab { font-family: var(--mono); text-transform: uppercase; font-size: 11.5px; color: var(--muted);
+  border: 2px solid transparent; border-bottom: 0; border-radius: 0; padding: 5px 14px; }
+.tab:hover { color: var(--fg); }
+.tab.on { color: #1c1430; background: var(--amber); border-color: var(--amber); }
+
+/* ---------- panels: framed screens ---------- */
+.page.on { gap: 10px; padding: 10px; }
+.panel { background: var(--panel); border: 2px solid var(--rim); border-radius: 0; box-shadow: 4px 4px 0 var(--shadow); }
+.ph { background: var(--face); border-bottom: 2px solid var(--rim); border-radius: 0; padding: 4px 10px; }
+.ph h2 { color: var(--amber); font-size: 11.5px; letter-spacing: .1em; text-transform: uppercase; }
+
+#panel { background: #0f0b1d; border-right: 3px solid var(--rim); padding: 8px; }
+#panel .group { background: var(--panel); border: 2px solid var(--rim); box-shadow: 3px 3px 0 var(--shadow); margin: 0 0 10px; padding: 0 8px 8px; }
+#panel .group > label { display: flex; align-items: center; gap: 6px; margin: 0 -8px 8px; padding: 4px 8px;
+  background: var(--face); border-bottom: 2px solid var(--rim); color: var(--amber); font-size: 11px; letter-spacing: .1em; }
+#panel .group.shut { padding-bottom: 0; }
+#panel .group.shut > label { margin-bottom: 0; border-bottom: 0; }
+#topbar { background: #0f0b1d; border-bottom: 2px solid var(--rim); }
+
+#palette .tile, #objPalette .tile, #bgList .tile, .propRow { border-radius: 0; border: 2px solid var(--rim); background: var(--well); }
+#palette .tile.on, #objPalette .tile.on, #bgList .tile.on, .propRow.on { border-color: var(--amber); box-shadow: 0 0 0 2px var(--amber); }
+
+.subh { color: var(--pink); text-transform: uppercase; letter-spacing: .1em; font-size: 11px; }
+
+/* ---------- lists: a high-score table ---------- */
+.item { border-radius: 0; padding: 3px 8px; }
+.item:hover { background: var(--face); }
+.item.on { background: var(--amber); box-shadow: none; }
+.item.on b, .item.on small { color: #1c1430; }
+.lgroup > summary { border-radius: 0; text-transform: uppercase; letter-spacing: .06em; }
+
+/* ---------- dialogs ---------- */
+dialog#ask, #chooseCard, #askCard { border-radius: 0; border: 3px solid var(--pink); box-shadow: 6px 6px 0 var(--shadow); }
+#chooseCard button { border-radius: 0; }

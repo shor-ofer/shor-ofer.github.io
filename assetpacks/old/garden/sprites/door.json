@@ -1,0 +1,7 @@
+{
+  "frames": 1,
+  "tiles": 1,
+  "pivot": [0, 0],
+  "mask": "doorGlow",
+  "collision": { "shape": "tile" }
+}

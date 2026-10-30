@@ -1,0 +1,7 @@
+{
+  "frames": 6,
+  "fps": 7.5,
+  "tiles": 0.8125,
+  "pivot": [0.5, 0.5],
+  "collision": { "shape": "circle", "r": 6 }
+}
