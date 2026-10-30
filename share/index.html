@@ -29,11 +29,13 @@
     share/?from=<id>&get=<name>&v=<version>
                                a friend's link: fetch that pack from that browser
 
-  A link names the pack and its version (a hash of its files). Opened in a
-  browser that already has that very pack — fetched before, or the one it was
-  shared from in the first place, on disk in levelpacks/ — it asks nothing of
-  the other browser: that copy is played, and shared from
-  this browser, with a link of its own. So every friend who has it can hand
+  A link names the pack and its version (packStore.manifestOf: a hash of the
+  list of its files' hashes). A friend fetches only the files whose hash
+  none of the level packs in their browser has: an older copy of the same
+  pack, or another pack built with the same art and sounds, gives the rest. Opened in a browser that already has that very
+  version — fetched before, or the one it was shared from in the first
+  place, on disk in levelpacks/ — it asks nothing of the other browser: that
+  copy is played, and shared from this browser, with a link of its own. So every friend who has it can hand
   it on, whether or not whoever they got it from is still there.
 -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.4/peerjs.min.js"></script>
@@ -142,27 +144,21 @@ const fmt = n => n < 1024 ? `${n} B` : n < 1048576 ? `${(n / 1024).toFixed(0)} K
 const pageUrl = new URL(location.pathname, location.origin).href;
 
 // What goes over the wire, in order:
-//   sharer -> friend  { t: 'pack', name, title, files: [{ path, size }] }
-//   sharer -> friend  { t: 'file', path, data: ArrayBuffer }   one per file,
+//   sharer -> friend  { t: 'pack', name, title, v, files: [{ path, size, hash }] }
+//   friend -> sharer  { t: 'want', paths }   the files whose hash no level
+//                                            pack in this browser has — all
+//                                            of them if it has none
+//   sharer -> friend  { t: 'file', path, data: ArrayBuffer }   one per file wanted,
 //   friend -> sharer  { t: 'got', path }                        each answered
 //   sharer -> friend  { t: 'end' }
-// One file at a time, each waited for, so neither side holds the whole pack
-// in the channel's buffer and both can show how far it has got.
+// The friend's new copy is the files sent and, for the rest, the same bytes
+// from whichever pack here has them; files the pack no longer has go. One file at a time, each
+// waited for, so neither side holds the whole pack in the channel's buffer
+// and both can show how far it has got.
 
 packStore.boot();
 
-// A pack's version: one number from every file's path and bytes, so two
-// browsers holding the same pack agree on it whatever order they read it in.
-async function versionOf(files) {
-  let h = 0x811c9dc5;
-  const mix = b => { h = Math.imul(h ^ b, 0x01000193); };
-  for (const f of [...files].sort((a, b) => a.path < b.path ? -1 : a.path > b.path ? 1 : 0)) {
-    for (const c of new TextEncoder().encode(f.path + '\0')) mix(c);
-    const u8 = new Uint8Array(f.data);
-    for (let i = 0; i < u8.length; i++) mix(u8[i]);
-  }
-  return (h >>> 0).toString(36);
-}
+const versionOf = files => packStore.manifestOf(files).v;
 
 // Where a stored pack is played: its own index.html, the whole game, or the
 // engine's page on it if it came without one.
@@ -183,6 +179,7 @@ async function sources() {
     if (res.ok) for (const p of await res.json()) if (Array.isArray(p.files)) {
       out.push({ key: p.name, name: p.name, title: p.title || p.name, label: `${p.title || p.name} — levelpacks/${p.name}`,
         play: files => files.some(f => f.path === 'index.html') ? p.dir + 'index.html' : `/src/index.html?pack=${encodeURIComponent(p.dir + 'levelpack.json')}`,
+        version: async function () { return versionOf(await this.load()); },
         load: async () => Promise.all(p.files.map(async path => {
           const r = await fetch(p.dir + path, { cache: 'no-store' });
           if (!r.ok) throw new Error(`${p.dir}${path}: ${r.status}`);
@@ -195,6 +192,7 @@ async function sources() {
       if (p.name.startsWith('__')) continue;     // the editor's passing copies
       out.push({ key: 'idb:' + p.name, name: p.name, title: p.title || p.name, label: `${p.title || p.name} — in this browser`,
         play: files => playUrl(p.name, files),
+        version: async () => (await packStore.manifest('levels', p.name))?.v,
         load: () => readStored(p.name) });
     }
   } catch { /* no store */ }
@@ -222,7 +220,7 @@ async function sendMode(auto) {
     try { files = await pack.load(); }
     catch (err) { say('#sendStatus', 'Could not read it: ' + err.message, 'err'); $('#startBtn').disabled = sel.disabled = false; return; }
     const size = files.reduce((n, f) => n + f.data.byteLength, 0);
-    const v = await versionOf(files);
+    const manifest = packStore.manifestOf(files), v = manifest.v;
     say('#sendStatus', 'Opening a line…');
     peer = new Peer('wtw-' + [...crypto.getRandomValues(new Uint8Array(6))].map(b => b.toString(16).padStart(2, '0')).join(''));
     peer.on('open', id => {
@@ -230,7 +228,7 @@ async function sendMode(auto) {
       $('#linkBox').hidden = false;
       say('#sendStatus', `Ready — ${files.length} files, ${fmt(size)}. Waiting for a friend…`, 'ok');
     });
-    peer.on('connection', conn => serve(conn, pack, files, size));
+    peer.on('connection', conn => serve(conn, pack, files, manifest));
     peer.on('disconnected', () => { say('#sendStatus', 'Lost the broker — reconnecting…', 'err'); peer.reconnect(); });
     peer.on('error', err => say('#sendStatus', 'Connection trouble: ' + (err.type || err.message), 'err'));
   };
@@ -258,15 +256,18 @@ async function haveHere(name, v) {
   for (const src of await sources()) {
     if (packStore.clean(src.name) !== name) continue;
     try {
+      if (await src.version() !== v) continue;
       const files = await src.load();
-      if (files.length && await versionOf(files) === v) return { src, files };
+      if (files.length) return { src, files };
     } catch { /* unreadable: not this one */ }
   }
   return null;
 }
 
-// One friend: a row of its own, the pack sent file by file.
-function serve(conn, pack, files, size) {
+// One friend: a row of its own; the manifest, then the files it asks for,
+// one by one.
+function serve(conn, pack, all, manifest) {
+  let files = [], size = 0;
   const row = document.createElement('div');
   row.className = 'friend';
   row.innerHTML = `<div class="status"><span>A friend</span><span class="n">connecting…</span></div><div class="bar"><i></i></div>`;
@@ -274,19 +275,31 @@ function serve(conn, pack, files, size) {
   const n = row.querySelector('.n'), bar = row.querySelector('i');
   let i = 0, sent = 0, waiting = null, finished = false;
   const next = () => {
-    if (i >= files.length) { finished = true; conn.send({ t: 'end' }); n.textContent = `sent, ${fmt(size)}`; n.parentElement.classList.add('ok'); return; }
+    if (i >= files.length) {
+      finished = true;
+      conn.send({ t: 'end' });
+      n.textContent = files.length === all.length ? `sent, ${fmt(size)}` : files.length ? `sent ${files.length} changed of ${all.length} files, ${fmt(size)}` : 'had it all already';
+      n.parentElement.classList.add('ok');
+      return;
+    }
     const f = files[i++];
     waiting = f.path;
     conn.send({ t: 'file', path: f.path, data: f.data });
     sent += f.data.byteLength;
   };
   conn.on('open', () => {
-    conn.send({ t: 'pack', name: pack.name, title: pack.title, files: files.map(f => ({ path: f.path, size: f.data.byteLength })) });
-    next();
+    conn.send({ t: 'pack', name: pack.name, title: pack.title, v: manifest.v, files: manifest.files });
   });
   conn.on('data', msg => {
+    if (msg && msg.t === 'want' && Array.isArray(msg.paths)) {
+      const wanted = new Set(msg.paths);
+      files = all.filter(f => wanted.has(f.path));
+      size = files.reduce((t, f) => t + f.data.byteLength, 0);
+      next();
+      return;
+    }
     if (!msg || msg.t !== 'got' || msg.path !== waiting) return;
-    bar.style.width = `${(100 * sent / size).toFixed(1)}%`;
+    bar.style.width = `${(100 * sent / (size || 1)).toFixed(1)}%`;
     n.textContent = `${fmt(sent)} of ${fmt(size)}`;
     next();
   });
@@ -304,6 +317,7 @@ async function getMode(from) {
   $('#getView').hidden = false;
   const peer = new Peer();
   let meta = null, got = 0, total = 0, done = false;
+  let kept = [];     // [{ to: path in the pack, from: { pack, path } here }]
   const files = [];
   peer.on('open', () => {
     const conn = peer.connect(from, { reliable: true });
@@ -312,9 +326,27 @@ async function getMode(from) {
       if (!msg) return;
       if (msg.t === 'pack') {
         meta = msg;
-        total = msg.files.reduce((n, f) => n + f.size, 0);
         $('#getTitle').textContent = msg.title;
-        $('#getNote').textContent = `A level pack, ${msg.files.length} files, ${fmt(total)}.`;
+        // every file this browser already holds, by hash, in any level pack
+        // here — its own older copy of this one looked in first
+        const own = packStore.clean(msg.name);
+        let names = [];
+        try { names = (await packStore.list('levels')).map(p => p.name).filter(n => !n.startsWith('__')); } catch { /* none */ }
+        names.sort((a, b) => (b === own) - (a === own));
+        const held = new Map();     // hash -> { pack, path }
+        for (const pack of names) {
+          let m = null;
+          try { m = await packStore.manifest('levels', pack); } catch { /* unreadable: skip it */ }
+          for (const f of m ? m.files : []) if (!held.has(f.hash)) held.set(f.hash, { pack, path: f.path });
+        }
+        const need = msg.files.filter(f => !held.has(f.hash));
+        kept = msg.files.filter(f => held.has(f.hash)).map(f => ({ to: f.path, from: held.get(f.hash) }));
+        total = need.reduce((n, f) => n + f.size, 0);
+        const whole = msg.files.reduce((n, f) => n + f.size, 0);
+        const update = names.includes(own);
+        $('#getNote').textContent = !kept.length ? `A level pack, ${msg.files.length} files, ${fmt(whole)}.`
+          : `${update ? 'An update to the copy you have' : 'Some of it is here already'}: fetching ${need.length} of ${msg.files.length} files, ${fmt(total)} of ${fmt(whole)}.`;
+        conn.send({ t: 'want', paths: need.map(f => f.path) });
       } else if (msg.t === 'file') {
         files.push({ name: msg.path, data: msg.data });
         got += msg.data.byteLength;
@@ -323,6 +355,12 @@ async function getMode(from) {
         conn.send({ t: 'got', path: msg.path });
       } else if (msg.t === 'end') {
         done = true;
+        // the rest, from whichever pack here has the same bytes
+        for (const k of kept) {
+          const rec = await packStore.get('levels', k.from.pack, k.from.path).catch(() => null);
+          if (!rec) { say('#getStatus', `${k.to} was taken out of this browser meanwhile — open the link again.`, 'err'); return; }
+          files.push({ name: k.to, data: rec.data });
+        }
         await keep(meta, files);
         conn.close();
         peer.destroy();

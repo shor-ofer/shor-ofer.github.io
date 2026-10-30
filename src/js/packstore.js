@@ -53,6 +53,32 @@ const packStore = (() => {
   });
 
   const clean = name => String(name).trim().replace(/[^A-Za-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '') || 'pack';
+
+  // A file's hash: 64 bits from two FNV-1a runs with different multipliers,
+  // as 16 hex digits. Not a secure hash — enough to tell a changed file from
+  // an unchanged one, the same in every browser, and on http as on https.
+  function hashBytes(u8) {
+    let a = 0x811c9dc5, b = 0x9e3779b9;
+    for (let i = 0; i < u8.length; i++) {
+      a = Math.imul(a ^ u8[i], 0x01000193);
+      b = Math.imul(b ^ u8[i], 0x5bd1e995);
+    }
+    return (a >>> 0).toString(16).padStart(8, '0') + (b >>> 0).toString(16).padStart(8, '0');
+  }
+  const byPath = (x, y) => x.path < y.path ? -1 : x.path > y.path ? 1 : 0;
+
+  // A pack's manifest — every file's path, size and hash, by path — and its
+  // version, a hash of that list: two browsers holding the same pack agree on
+  // both, and comparing two manifests says which files differ. files are
+  // [{ path or name, data: ArrayBuffer or bytes }].
+  function manifestOf(files) {
+    const list = files.map(f => {
+      const u8 = f.data instanceof Uint8Array ? f.data : new Uint8Array(f.data);
+      return { path: f.path || f.name, size: u8.length, hash: hashBytes(u8) };
+    }).sort(byPath);
+    const v = hashBytes(new TextEncoder().encode(list.map(f => `${f.path}\0${f.hash}`).join('\n')));
+    return { v, files: list };
+  }
   const asBlob = (data, path) => data instanceof Blob ? data
     : new Blob([typeof data === 'string' ? data : data instanceof ArrayBuffer ? new Uint8Array(data) : data], { type: typeOf(path) });
 
@@ -100,6 +126,28 @@ const packStore = (() => {
       const db = await open();
       const rec = await result(db.transaction(FILES, 'readonly').objectStore(FILES).get(`${kind}/${name}/${path}`));
       return rec || null;
+    },
+
+    manifestOf,
+
+    // A stored pack's manifest (manifestOf), or null if there is no such
+    // pack. Worked out once and kept with the pack's entry, and again only
+    // once the pack has been put since.
+    async manifest(kind, name) {
+      const db = await open();
+      const key = `${kind}/${name}`;
+      const meta = await result(db.transaction(PACKS, 'readonly').objectStore(PACKS).get(key));
+      if (!meta) return null;
+      if (meta.manifest && meta.manifest.updated === meta.updated) return meta.manifest;
+      const files = await Promise.all((await this.files(kind, name)).map(async f => ({ name: f.name, data: await f.data.arrayBuffer() })));
+      const m = { ...manifestOf(files), updated: meta.updated };
+      const tx = db.transaction(PACKS, 'readwrite');
+      const store = tx.objectStore(PACKS);
+      // only if the pack wasn't put again meanwhile
+      const now = await result(store.get(key));
+      if (now && now.updated === meta.updated) store.put({ ...now, manifest: m }, key);
+      await done(tx);
+      return m;
     },
 
     // Every file of a pack, as put() takes them: [{ name, data: Blob }].
