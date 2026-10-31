@@ -57,6 +57,20 @@ const ShareCommands = (() => {
       text: rows => !rows.length ? 'There are no level packs in this browser.'
         : table(rows, [['NAME', r => r.name], ['TITLE', r => r.title], ['SHARED', r => r.shared ? 'yes' : ''], ['FILES', r => r.files, true],
           ['SIZE', r => r.size == null ? '' : fmt(r.size), true], ['VERSION', r => r.v || ''], ['UPDATED', r => day(r.updated)]]) },
+    { name: 'store', about: 'what this browser keeps for this address: its packs, their files, and the bytes kept — each file once, however many packs hold it',
+      run: async () => {
+        const s = await packStore.stats();
+        let est = null;
+        try { est = navigator.storage && await navigator.storage.estimate(); } catch { /* not told */ }
+        return { ...s, usage: est ? est.usage : null, quota: est ? est.quota : null };
+      },
+      text: r => [
+        `packs    ${Object.entries(r.packs).map(([k, n]) => `${n} ${k}`).join(', ') || 'none'}`,
+        `files    ${r.files}, ${fmt(r.bytes)} in all`,
+        `kept     ${r.blobs} distinct, ${fmt(r.kept)}${r.unmoved ? ` — ${r.unmoved} old files still being moved` : ''}`,
+        `saved    ${fmt(r.saved)}${r.bytes ? ` (${Math.round(100 * r.saved / r.bytes)}%)` : ''}`,
+        r.usage != null ? `browser  ${fmt(r.usage)} used here, of ${fmt(r.quota)} allowed` : null
+      ].filter(Boolean).join('\n') },
     { name: 'open', value: 'name', about: 'share a level pack: friends with your share link may fetch it whenever a share page is open here; asks first',
       run: async (p, io) => {
         const src = await C.sourceNamed(needs(p.open, 'a level pack name'));

@@ -84,7 +84,7 @@ const ShareCore = (() => {
       if (res.ok) for (const p of await res.json()) if (Array.isArray(p.files)) {
         out.push({ key: p.name, name: p.name, title: p.title || p.name, label: `${p.title || p.name} — levelpacks/${p.name}`, dir: p.dir,
           play: files => files.some(f => f.path === 'index.html') ? p.dir + 'index.html' : `/src/index.html?pack=${encodeURIComponent(p.dir + 'levelpack.json')}`,
-          version: async function () { return packStore.manifestOf(await this.load()).v; },
+          version: async function () { return (await packStore.manifestOf(await this.load())).v; },
           load: async () => Promise.all(p.files.map(async path => {
             const r = await fetch(p.dir + path, { cache: 'no-store' });
             if (!r.ok) throw new Error(`${p.dir}${path}: ${r.status}`);
@@ -147,7 +147,8 @@ const ShareCore = (() => {
   async function packInfo(name) {
     const src = await sourceNamed(name);
     if (!src) throw error('missing', `There is no level pack called ${name} here.`);
-    const m = packStore.manifestOf(await src.load());
+    // one kept here has its manifest saved with it; one on disk is read
+    const m = src.key.startsWith('idb:') ? await packStore.manifest('levels', src.name) : await packStore.manifestOf(await src.load());
     return { name: src.name, title: src.title, key: src.key, where: src.key.startsWith('idb:') ? 'browser' : 'disk', url: src.dir,
       shared: isShared(src.name), v: m.v, size: m.files.reduce((n, f) => n + f.size, 0), files: m.files };
   }
@@ -198,7 +199,7 @@ const ShareCore = (() => {
     const pack = await sourceNamed(name);
     if (!pack) throw error('missing', `There is no level pack called ${name} here.`);
     const files = await pack.load();
-    const manifest = packStore.manifestOf(files);
+    const manifest = await packStore.manifestOf(files);
     const size = files.reduce((n, f) => n + f.data.byteLength, 0);
     if (typeof Peer === 'undefined') throw error('nopeer', 'Could not load PeerJS from cdnjs — sharing needs the internet to find the other browser.');
     const current = () => ({ pack, files, manifest });
@@ -258,7 +259,7 @@ const ShareCore = (() => {
           if (!pack) { conn.send({ t: 'none', name: msg.name }); fail(`asked for ${msg.name}, which isn't here`); return; }
           try { had = await pack.load(); }
           catch (err) { conn.send({ t: 'none', name: msg.name }); fail('could not read it: ' + err.message); return; }
-          manifest = packStore.manifestOf(had);
+          manifest = await packStore.manifestOf(had);
         }
         all = had;
         title = pack.title;
