@@ -206,6 +206,8 @@
   #chooseCard select { font-size: 14px; }
   #chooseCard button { width: auto; padding: 7px 12px; font-size: 14px; border-radius: 7px; }
   #chooseNote:empty { display: none; }
+  #chooseTextRow[hidden] { display: none; }
+  #chooseText { font-size: 13px; width: 100%; }
   /* the level pack button and its list, as the creator's: a new one, a copy
      and a rename first, then the level packs here; renaming turns it into a
      text field in place */
@@ -421,6 +423,7 @@
   <form id="chooseCard">
     <h3 id="chooseTitle"></h3>
     <label class="ctl"><span id="chooseLabel"></span><select id="chooseSel"></select></label>
+    <label class="ctl" id="chooseTextRow" hidden><span id="chooseTextLabel"></span><input id="chooseText" autocomplete="off" spellcheck="false"></label>
     <p class="hint" id="chooseNote"></p>
     <div class="row" style="justify-content:flex-end;gap:8px">
       <button type="button" id="chooseNo">Cancel</button>
@@ -2112,7 +2115,24 @@ function ask(title, message, confirmLabel) {
 // One choice from a list: resolves to the value picked, or null.
 // options: [{ value, label }].
 let chooseResolve = null;
+// An option with `ask` (a label) and `hint` asks for a line of text as well,
+// shown while it is picked: the answer is then `<value>:<text>`.
+let chooseOptions = [];
+function chooseShowText() {
+  const o = chooseOptions.find(o => o.value === document.getElementById('chooseSel').value);
+  document.getElementById('chooseTextRow').hidden = !(o && o.ask);
+  if (o && o.ask) {
+    document.getElementById('chooseTextLabel').textContent = o.ask;
+    document.getElementById('chooseText').placeholder = o.hint || '';
+  }
+}
+document.getElementById('chooseSel').addEventListener('change', () => {
+  chooseShowText();
+  if (!document.getElementById('chooseTextRow').hidden) document.getElementById('chooseText').focus();
+});
 function choose(title, label, options, value, okLabel, note = '') {
+  chooseOptions = options;
+  document.getElementById('chooseText').value = '';
   document.getElementById('chooseTitle').textContent = title;
   document.getElementById('chooseLabel').textContent = label;
   document.getElementById('chooseNote').textContent = note;
@@ -2120,6 +2140,7 @@ function choose(title, label, options, value, okLabel, note = '') {
   const sel = document.getElementById('chooseSel');
   sel.innerHTML = options.map(o => `<option value="${escHtml(o.value)}">${escHtml(o.label)}</option>`).join('');
   if (value !== undefined && options.some(o => o.value === value)) sel.value = value;
+  chooseShowText();
   document.getElementById('chooseOverlay').classList.remove('hidden');
   sel.focus();
   return new Promise(resolve => { chooseResolve = resolve; });
@@ -2131,7 +2152,11 @@ function closeChoose(answer) {
   chooseResolve = null;
   resolve(answer);
 }
-document.getElementById('chooseCard').addEventListener('submit', e => { e.preventDefault(); closeChoose(document.getElementById('chooseSel').value); });
+document.getElementById('chooseCard').addEventListener('submit', e => {
+  e.preventDefault();
+  const value = document.getElementById('chooseSel').value;
+  closeChoose(document.getElementById('chooseTextRow').hidden ? value : `${value}:${document.getElementById('chooseText').value.trim()}`);
+});
 document.getElementById('chooseNo').addEventListener('click', () => closeChoose(null));
 document.getElementById('chooseOverlay').addEventListener('mousedown', e => { if (e.target.id === 'chooseOverlay') closeChoose(null); });
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && chooseResolve) closeChoose(null); });
@@ -2931,7 +2956,9 @@ async function mirrorNow() {
   const p = packs[packIndex];
   if (!p) return;
   const key = packSum(p) + '|' + EDITOR_DIR;
-  if (p.mirrorSum === key) return;
+  // made already — unless it was taken out since (share/?list deletes them)
+  if (p.mirrorSum === key && p.mirror && await storeReady(3000)
+    && await packStore.get('levels', p.mirror, 'levelpack.json').catch(() => null)) return;
   mirrorError = '';
   try {
     if (!await storeReady(3000)) { mirrorError = 'the service worker is not running'; return; }
@@ -3004,8 +3031,9 @@ function load() {
 
 // ---------- Import ----------
 // Import adds a level pack: one in levelpacks/ (from levelpacks/index.json),
-// one kept in the browser by something other than this editor, a .zip, a
-// copy of the one open, or an empty one. ?pack=<url to a levelpack.json>
+// one kept in the browser by something other than this editor, a .zip, one
+// shared from another browser by its share link, a copy of the one open, or
+// an empty one. ?pack=<url to a levelpack.json>
 // imports one on load.
 const packSlug = () => (packName || 'level-pack').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'level-pack';
 const gameUrlFor = packUrl => `/src/index.html?pack=${encodeURIComponent(packUrl)}&assets=${encodeURIComponent(EDITOR_DIR)}`;
@@ -3014,7 +3042,10 @@ const escHtml = t => String(t).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&
 
 // What Import offers, as { value, label }s.
 async function importChoices() {
-  const opts = [{ value: 'zip', label: 'A .zip file on this computer…' }];
+  const opts = [
+    { value: 'zip', label: 'A .zip file on this computer…' },
+    { value: 'link', label: 'A share link from another browser…', ask: 'The link (share/?from=…&get=…)', hint: 'https://…/share/?from=wtw-…&get=…' }
+  ];
   try {
     const res = await fetch('/levelpacks/index.json', { cache: 'no-store' });
     if (res.ok) for (const p of await res.json()) opts.push({ value: `url:${p.dir}levelpack.json`, label: `${p.title} — levelpacks/${p.name}` });
@@ -3039,8 +3070,40 @@ document.getElementById('importBtn').addEventListener('click', async () => {
     'It is added to the level packs in this browser; the one open now is kept.');
   if (!pick) return;
   if (pick.startsWith('url:')) { openLevelPack(pick.slice(4)); return; }
+  if (pick.startsWith('link:')) { importShared(pick.slice(5)); return; }
   if (pick === 'zip') importZip();
 });
+
+// A level pack shared from another browser, by the link its share page gave
+// (share/?from=<id>&get=<name>&v=<version>, on any address): this page's own
+// share page runs that command in a hidden frame with &json — fetching it
+// into this browser's pack store as a friend opening the link would, only the
+// files not here already — and posts how it goes and where the pack is; it is
+// read from there as any level pack is.
+let shareFrame = null;
+async function importShared(text) {
+  let link;
+  try { link = new URL(text); } catch { levelMsg.textContent = 'That is not a link — paste the whole share link.'; return; }
+  const from = link.searchParams.get('from'), name = link.searchParams.get('get');
+  if (!from || !name) { levelMsg.textContent = 'That is not a share link: it should have ?from=…&get=… in it.'; return; }
+  if (!await storeReady(4000)) { levelMsg.textContent = 'Could not fetch it: ' + (await storeTrouble() || 'the pack store is not running') + '.'; return; }
+  if (shareFrame) shareFrame.remove();
+  const frame = shareFrame = document.createElement('iframe');
+  frame.hidden = true;
+  const v = link.searchParams.get('v');     // the copy here at that version: nothing to ask
+  frame.src = `/share/?from=${encodeURIComponent(from)}&get=${encodeURIComponent(name)}${v ? '&v=' + encodeURIComponent(v) : ''}&json`;
+  levelMsg.textContent = `Connecting to the browser sharing "${name}"…`;
+  const done = () => { window.removeEventListener('message', heard); frame.remove(); if (shareFrame === frame) shareFrame = null; };
+  const heard = e => {
+    if (e.source !== frame.contentWindow || e.origin !== location.origin || !e.data || e.data.wtw !== 'share') return;
+    const { kind, data } = e.data;
+    if (kind === 'progress' && (data.text || data.note)) levelMsg.textContent = 'Fetching the shared level pack: ' + (data.text || data.note);
+    else if (kind === 'error') { levelMsg.textContent = 'Could not fetch the shared level pack: ' + data.message; done(); }
+    else if (kind === 'result') { done(); openLevelPack(data.url); }     // kept, or here already
+  };
+  window.addEventListener('message', heard);
+  document.body.appendChild(frame);
+}
 
 // A .zip of a level pack: read here, put in the pack store for a moment so it
 // can be read as any level pack is, then let go of — the copy kept is made

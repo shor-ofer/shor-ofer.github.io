@@ -1,0 +1,259 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Share Shell — Warm the Worm</title>
+<!--
+  A command line in the page for the share page's commands, all in this
+  browser — nothing is installed, no server is asked.
+
+    share list                  ->  share/?list&text
+    share del garden            ->  share/?del=garden&text
+    share get x -from wtw-…     ->  share/?get=x&from=wtw-…&text
+
+  This page knows no share command of its own: it turns the command line into
+  the share page's address (ShareCommands.toQuery — the command and each
+  -option a parameter, a word after one its value), opens that in a hidden
+  frame with &text and prints what the page posts back (share/index.html). So
+  a command added to share/commands.js works here at once, and `share help`
+  is that table. -json on a command prints its data as JSON instead.
+
+  -url on any share command prints its address instead of running it (as
+  does url <share …>). Its own commands: help, clear,
+  open <share …> (that address as the page shows it), jobs, stop <n>.
+  A command ending in & runs in the background; one that goes on (sharing)
+  moves there by itself once it is going. ↑/↓ history, Ctrl+C stops the one
+  running, Ctrl+L clears.
+-->
+<script src="/share/core.js"></script>
+<script src="/share/commands.js"></script>
+<style>
+  :root {
+    --bg:#17122a; --panel:#211a3a; --line:#3d3263;
+    --fg:#efe9ff; --muted:#a69cc9; --amber:#ffb547; --pink:#ff6fae; --mint:#6ff0c8;
+    --mono:ui-monospace,Menlo,Consolas,monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 13.5px/1.55 var(--mono); display: flex; flex-direction: column; }
+  header { display: flex; gap: 12px; align-items: baseline; padding: 10px 16px; border-bottom: 1px solid var(--line); background: var(--panel); flex-wrap: wrap; }
+  header b { color: var(--amber); }
+  header b span { color: var(--pink); }
+  header a { color: var(--muted); font-size: 12px; }
+  #out { flex: 1; overflow: auto; padding: 12px 16px; white-space: pre-wrap; word-break: break-word; }
+  #out a { color: var(--mint); }
+  .cmd { color: var(--amber); }
+  .dim { color: var(--muted); }
+  .err { color: var(--pink); }
+  .ok { color: var(--mint); }
+  form { display: flex; gap: 8px; align-items: center; padding: 10px 16px; border-top: 1px solid var(--line); background: var(--panel); }
+  #prompt { color: var(--mint); white-space: nowrap; }
+  .pickbtn { font: inherit; color: #1c1430; background: var(--amber); border: 0; border-radius: 5px; padding: 3px 10px; cursor: pointer; }
+  #line { flex: 1; min-width: 0; font: inherit; color: var(--fg); background: transparent; border: 0; outline: none; }
+  #line::placeholder { color: var(--muted); }
+</style>
+</head>
+<body>
+<header><b>Warm the <span>Worm</span></b><span class="dim">share shell</span><a href="./?help">the share page's commands</a></header>
+<div id="out" aria-live="polite"></div>
+<form id="form" autocomplete="off">
+  <span id="prompt">$</span>
+  <input id="line" spellcheck="false" autocapitalize="off" aria-label="Command" placeholder="share help">
+</form>
+
+<script>
+const out = document.getElementById('out');
+const line = document.getElementById('line');
+const promptEl = document.getElementById('prompt');
+const SHARE = new URL('./', location.href);     // the share page, next to this one
+const esc = t => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const linkify = t => esc(t).replace(/https?:\/\/[^\s"<]+/g, u => `<a href="${u}" target="_blank" rel="noopener">${u}</a>`);
+
+function print(text, cls = '') {
+  const div = document.createElement('div');
+  if (cls) div.className = cls;
+  div.innerHTML = linkify(text);
+  out.appendChild(div);
+  out.scrollTop = out.scrollHeight;
+}
+
+// ---------- jobs ----------
+// Each share command runs in a frame of the share page with &json; the
+// foreground one has the prompt until it answers.
+const jobs = new Map();       // n -> { n, line, frame, bg }
+let jobCount = 0, fg = null, asking = null;
+
+function addressOf(text) {
+  const query = ShareCommands.toQuery(text);
+  return { query, url: `${SHARE.href}?${query}` };
+}
+
+function run(text, background) {
+  let query;
+  try { ({ query } = addressOf(text)); } catch (err) { print(err.message, 'err'); return; }
+  // -url and -json, on any command, are the shell's, not the page's: its
+  // address, not run; its data as JSON rather than text
+  const params = new URLSearchParams(query);
+  const asJson = params.has('json');
+  params.delete('json');
+  const q = params.toString().replace(/=(&|$)/g, '$1');
+  const amp = q ? '&' : '';
+  if (params.has('url')) {
+    params.delete('url');
+    const bare = params.toString().replace(/=(&|$)/g, '$1');
+    const and = bare ? '&' : '';
+    print(`${SHARE.href}?${bare}`);
+    print(`${SHARE.href}?${bare}${and}text`, 'dim');
+    print(`${SHARE.href}?${bare}${and}json`, 'dim');
+    return;
+  }
+  query = q + amp + (asJson ? 'json' : 'text');
+  const n = ++jobCount;
+  const frame = document.createElement('iframe');
+  frame.hidden = true;
+  frame.src = `${SHARE.href}?${query}`;
+  const job = { n, line: text, frame, bg: !!background };
+  jobs.set(n, job);
+  document.body.appendChild(frame);
+  if (job.bg) print(`[${n}] ${text}`, 'dim');
+  else setForeground(job);
+}
+
+function setForeground(job) {
+  fg = job;
+  line.placeholder = job ? 'running — Ctrl+C stops it' : 'share help';
+}
+
+function end(job, quiet) {
+  job.frame.remove();
+  jobs.delete(job.n);
+  if (asking && asking.job === job) { asking = null; promptEl.textContent = '$'; }
+  if (fg === job) setForeground(null);
+  else if (!quiet) print(`[${job.n}] done  ${job.line}`, 'dim');
+}
+
+window.addEventListener('message', e => {
+  if (e.origin !== location.origin || !e.data || e.data.wtw !== 'share') return;
+  const job = [...jobs.values()].find(j => j.frame.contentWindow === e.source);
+  if (!job) return;
+  const { kind, data } = e.data;
+  const tag = job.bg ? `[${job.n}] ` : '';
+  // &text: the page's own lines (none for a message not worth one); &json: the data
+  const said = 'text' in e.data ? e.data.text : JSON.stringify(data, null, kind === 'result' ? 2 : 0);
+  if (kind === 'progress') { if (said != null) print(tag + said, 'dim'); }
+  else if (kind === 'event') { if (said != null) print(tag + said); }
+  else if (kind === 'stay') {
+    if (fg === job) {
+      job.bg = true;
+      setForeground(null);
+      print(`[${job.n}] goes on in the background — "stop ${job.n}" ends it, "jobs" lists them`, 'dim');
+    }
+  } else if (kind === 'save') {
+    // the page's file, kept here: a frame can't download it itself
+    const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(data.blob), download: data.filename });
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 60000);
+    print(`${tag}saved ${data.filename} — to your downloads`, 'dim');
+  } else if (kind === 'pick') {
+    // a file is only asked for on a click: a button for it, here
+    const answer = file => { div.remove(); job.frame.contentWindow.postMessage({ wtw: 'share-answer', id: data.id, file }, location.origin); };
+    const div = document.createElement('div');
+    div.innerHTML = '<button type="button" class="pickbtn"></button> <span class="dim">or Ctrl+C</span>';
+    const b = div.firstChild;
+    b.textContent = tag + data.text + '…';
+    b.onclick = () => {
+      const input = Object.assign(document.createElement('input'), { type: 'file', accept: data.accept || '' });
+      input.onchange = () => { print(`${tag}${input.files[0] ? input.files[0].name : 'nothing chosen'}`, 'cmd'); answer(input.files[0] || null); };
+      input.oncancel = () => { print(`${tag}nothing chosen`, 'cmd'); answer(null); };
+      input.click();
+    };
+    out.appendChild(div);
+    out.scrollTop = out.scrollHeight;
+    b.focus();
+  } else if (kind === 'confirm') {
+    asking = { job, id: data.id };
+    print(tag + data.text + ' [y/N]', 'cmd');
+    promptEl.textContent = 'y/N';
+    line.focus();
+  } else if (kind === 'result') { if (tag) print(tag + 'result:', 'dim'); print(said, 'ok'); end(job); }
+  else if (kind === 'error') { print(`${tag}error: ${data.message}${data.code ? ` (${data.code})` : ''}`, 'err'); end(job); }
+});
+
+// ---------- the shell's own commands ----------
+const OWN = {
+  help: () => print([
+    'Every share command is the share page\'s own: the command, then its -options — each a parameter of its address:',
+    '  share help               what they are (from share/commands.js)',
+    '  share list               the level packs kept in this browser',
+    '  share del <name>         delete one (asks first)',
+    "  share get <name> -from <id> -diff   what a friend's link would fetch",
+    '  share download <name>    save a level pack as a .zip; share upload [<name>] keeps one from a .zip',
+    'This shell:',
+    '  share <command> … -url   the address it is — as the page, as text, as JSON — not run',
+    '  share <command> … -json  its answer as JSON, not text',
+    '  open <share …>           that address in a new tab, as the share page shows it',
+    '  <command> &              run it in the background',
+    '  jobs, stop <n>           those running, and stopping one',
+    '  clear                    (Ctrl+L)',
+    '↑/↓ history, Ctrl+C stops the one running.'
+  ].join('\n')),
+  clear: () => { out.innerHTML = ''; },
+  url: rest => { try { print(addressOf(rest).url); } catch (err) { print(err.message, 'err'); } },
+  open: rest => { try { window.open(addressOf(rest).url, '_blank', 'noopener'); } catch (err) { print(err.message, 'err'); } },
+  jobs: () => { if (!jobs.size) print('nothing running', 'dim'); for (const j of jobs.values()) print(`[${j.n}] ${j === fg ? '(foreground) ' : ''}${j.line}`); },
+  stop: rest => {
+    const job = jobs.get(+rest.replace('%', ''));
+    if (!job) { print(`no job ${rest}`, 'err'); return; }
+    print(`[${job.n}] stopped  ${job.line}`, 'dim');
+    end(job, true);
+  }
+};
+
+// ---------- the line ----------
+let history = [];
+try { history = JSON.parse(localStorage.getItem('wtwShellHistory') || '[]'); } catch { /* none kept */ }
+let at = history.length;
+
+document.getElementById('form').addEventListener('submit', e => {
+  e.preventDefault();
+  const text = line.value.trim();
+  line.value = '';
+  if (asking) {
+    const { job, id } = asking;
+    asking = null;
+    promptEl.textContent = '$';
+    print(`${text || 'n'}`, 'cmd');
+    job.frame.contentWindow.postMessage({ wtw: 'share-answer', id, yes: /^y(es)?$/i.test(text) }, location.origin);
+    return;
+  }
+  if (!text) return;
+  if (fg) { print('wait for the one running, or Ctrl+C', 'err'); return; }
+  print('$ ' + text, 'cmd');
+  history = history.filter(h => h !== text).concat(text).slice(-100);
+  at = history.length;
+  try { localStorage.setItem('wtwShellHistory', JSON.stringify(history)); } catch { /* not kept */ }
+  const background = /\s&$/.test(text) || text.endsWith('&');
+  const command = text.replace(/\s*&$/, '');
+  const [word, ...rest] = command.split(/\s+/);
+  if (word === 'share') run(command, background);
+  else if (OWN[word]) OWN[word](rest.join(' '));
+  else print(`${word}: not a command — "help" says what is`, 'err');
+});
+
+line.addEventListener('keydown', e => {
+  if (e.key === 'ArrowUp' && at > 0) { line.value = history[--at]; e.preventDefault(); }
+  else if (e.key === 'ArrowDown') { at = Math.min(history.length, at + 1); line.value = history[at] || ''; e.preventDefault(); }
+  else if (e.ctrlKey && e.key === 'c' && fg && !line.value.substring(line.selectionStart, line.selectionEnd)) { e.preventDefault(); OWN.stop(String(fg.n)); }
+  else if (e.ctrlKey && e.key === 'l') { e.preventDefault(); OWN.clear(); }
+});
+out.addEventListener('click', () => { if (!getSelection().toString()) line.focus(); });
+
+print('Warm the Worm share shell — the share page\'s commands, run in this browser.', 'ok');
+print('"share help" lists them, "help" this shell\'s own.', 'dim');
+line.focus();
+</script>
+</body>
+</html>

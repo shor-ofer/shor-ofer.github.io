@@ -1,3 +1,8 @@
+// Zip files, written and read in the browser, for the tools that hand packs
+// to and from disk: the asset pack creator's Export and Import, and share/'s
+// download and upload. Plain functions, no module: zipBlob(files) and
+// readZip(buffer).
+
 // ---------- writing a zip ----------
 // Stored, not deflated: the whole point is a folder that unzips into
 // assetpacks/, and PNG and mp3 are already compressed.
