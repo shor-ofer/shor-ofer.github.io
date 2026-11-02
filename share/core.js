@@ -10,9 +10,9 @@
 // What goes over the wire, in order:
 //   friend -> sharer  { t: 'ask', name, v }  the pack its link names, and the
 //                                            version of its own copy, if any
-//   sharer -> friend  { t: 'same', name, title, v }   that is this version:
-//                                                     nothing more is sent
-//                     or { t: 'pack', name, title, v, files: [{ path, size, hash }] }
+//   sharer -> friend  { t: 'same', name, title, v, card }   that is this
+//                                                 version: nothing more is sent
+//                     or { t: 'pack', name, title, v, card, files: [{ path, size, hash }] }
 //                     or { t: 'none', name }  if this browser hasn't got it
 //   friend -> sharer  { t: 'want', paths }   the files whose hash no level
 //                                            pack in this browser has — all
@@ -20,6 +20,11 @@
 //   sharer -> friend  { t: 'file', path, data: ArrayBuffer }   one per file wanted,
 //   friend -> sharer  { t: 'got', path }                        each answered
 //   sharer -> friend  { t: 'end' }
+// card is the pack's signed card (share/cards.js), or null where there can
+// be none (plain http). Instead of 'ask', a friend may only ask what the
+// newest version is:
+//   friend -> sharer  { t: 'latest', id }       a card's pack id
+//   sharer -> friend  { t: 'card', card }  or { t: 'none' }
 // A sharer answers only for packs marked shared in its browser (setShared):
 // any other name is 'none', as if it weren't there — one link handed on
 // mustn't reach every pack this browser keeps.
@@ -137,8 +142,10 @@ const ShareCore = (() => {
       if (p.name.startsWith('__')) continue;
       let m = null;
       try { m = await packStore.manifest('levels', p.name); } catch { /* unreadable */ }
+      const e = typeof ShareCards !== 'undefined' && ShareCards.stored(p.name);
+      const card = e && m && e.card.v === m.v ? e.card : null;
       out.push({ name: p.name, title: p.title || p.name, files: p.count, size: m ? m.files.reduce((n, f) => n + f.size, 0) : null,
-        v: m ? m.v : null, shared: isShared(p.name), updated: new Date(p.updated).toISOString(), url: packStore.url('levels', p.name) });
+        v: m ? m.v : null, id: card ? card.id : null, seq: card ? card.seq : null, shared: isShared(p.name), updated: new Date(p.updated).toISOString(), url: packStore.url('levels', p.name) });
     }
     return out;
   }
@@ -158,8 +165,11 @@ const ShareCore = (() => {
   async function zipPack(name) {
     const src = await sourceNamed(name);
     if (!src) throw error('missing', `There is no level pack called ${name} here.`);
-    const files = await src.load();
-    const blob = zipBlob(files.map(f => ({ name: f.path, data: new Uint8Array(f.data) })));
+    const files = (await src.load()).filter(f => f.path !== 'card.json');
+    // its card beside its files, as a web folder it is put up in has it
+    const card = typeof ShareCards !== 'undefined' ? await ShareCards.cardOrNull(src.key) : null;
+    const blob = zipBlob([...files.map(f => ({ name: f.path, data: new Uint8Array(f.data) })),
+      ...card ? [{ name: 'card.json', data: new TextEncoder().encode(JSON.stringify(card, null, 1)) }] : []]);
     return { name: src.name, title: src.title, files: files.length, blob, filename: `${clean(src.name)}.zip` };
   }
 
@@ -171,11 +181,13 @@ const ShareCore = (() => {
     const lib = [...all.keys()].filter(k => k === 'levelpack.json' || k.endsWith('/levelpack.json')).sort((a, b) => a.length - b.length)[0];
     if (!lib) throw error('notpack', `${file.name} is no level pack: there is no levelpack.json in it.`);
     const root = lib.slice(0, -'levelpack.json'.length);
-    const files = [...all].filter(([k]) => k.startsWith(root)).map(([k, data]) => ({ name: k.slice(root.length), data }));
+    const files = [...all].filter(([k]) => k.startsWith(root) && k !== root + 'card.json').map(([k, data]) => ({ name: k.slice(root.length), data }));
+    let card = null;
+    try { card = all.has(root + 'card.json') ? JSON.parse(new TextDecoder().decode(all.get(root + 'card.json'))) : null; } catch { /* none, then */ }
     const here = clean(name || root.split('/').filter(Boolean).pop() || file.name.replace(/\.zip$/i, ''));
     let title = here;
     try { title = JSON.parse(new TextDecoder().decode(all.get(lib))).name || here; } catch { /* its name, then */ }
-    return { name: here, title, files };
+    return { name: here, title, files, card };
   }
 
   // Deletes from this browser's store one pack, or every one; the names gone.
@@ -184,6 +196,7 @@ const ShareCore = (() => {
     for (const name of names) {
       await packStore.remove('levels', name);
       try { setShared(name, false); } catch { /* not kept anyway */ }
+      try { if (typeof ShareCards !== 'undefined') ShareCards.forget(name); } catch { /* as above */ }
       gone.push(name);
     }
     return gone;
@@ -249,12 +262,25 @@ const ShareCore = (() => {
       conn.send({ t: 'file', path: f.path, data: f.data });
       sent += f.data.byteLength;
     };
+    const cardOf = name => typeof ShareCards !== 'undefined' ? ShareCards.cardOrNull(name) : null;
     conn.on('data', async msg => {
+      if (msg && msg.t === 'latest') {
+        // the newest card here of a pack id: a shared pack's only
+        const name = typeof ShareCards !== 'undefined' && ShareCards.nameOf(String(msg.id));
+        const card = name && isShared(name) ? await cardOf('idb:' + name) : null;
+        conn.send(card && card.id === msg.id ? { t: 'card', card } : { t: 'none' });
+        finished = true;
+        tell(card ? `asked for the newest ${card.title}: version ${card.seq}` : `asked for the newest ${msg.id}, which isn't shared`, card ? 'ok' : 'err', 1);
+        return;
+      }
       if (msg && msg.t === 'ask') {
         // only a pack this browser shares — any other as if it weren't here
         if (!isShared(msg.name || '')) { conn.send({ t: 'none', name: msg.name }); fail(`asked for ${msg.name}, which isn't shared`); return; }
         let { pack, files: had, manifest } = current();
-        if (clean(msg.name) !== clean(pack.name)) {
+        // the pack being shared, unless it was saved again since it was read
+        const changed = pack.key.startsWith('idb:') && clean(msg.name) === clean(pack.name)
+          && (await packStore.manifest('levels', pack.name).catch(() => null))?.v !== manifest.v;
+        if (changed || clean(msg.name) !== clean(pack.name)) {
           pack = await sourceNamed(msg.name);
           if (!pack) { conn.send({ t: 'none', name: msg.name }); fail(`asked for ${msg.name}, which isn't here`); return; }
           try { had = await pack.load(); }
@@ -264,12 +290,12 @@ const ShareCore = (() => {
         all = had;
         title = pack.title;
         if (msg.v && msg.v === manifest.v) {
-          conn.send({ t: 'same', name: pack.name, title: pack.title, v: manifest.v });
+          conn.send({ t: 'same', name: pack.name, title: pack.title, v: manifest.v, card: await cardOf(pack.key) });
           finished = true;
           tell('had this version already', 'ok', 1);
           return;
         }
-        conn.send({ t: 'pack', name: pack.name, title: pack.title, v: manifest.v, files: manifest.files });
+        conn.send({ t: 'pack', name: pack.name, title: pack.title, v: manifest.v, card: await cardOf(pack.key), files: manifest.files });
         tell('reading its list of files…');
         return;
       }
@@ -292,6 +318,22 @@ const ShareCore = (() => {
       fail('left before the end');
     });
     conn.on('error', err => fail('failed: ' + err.message));
+  }
+
+  // Every file this browser holds, by hash, in any level pack here, `own`'s
+  // looked in first: hash -> { pack, path }; .packs, the packs looked in.
+  async function heldFiles(own) {
+    let names = [];
+    try { names = (await packStore.list('levels')).map(p => p.name).filter(n => !n.startsWith('__')); } catch { /* none */ }
+    names.sort((a, b) => (b === own) - (a === own));
+    const held = new Map();
+    for (const pack of names) {
+      let m = null;
+      try { m = await packStore.manifest('levels', pack); } catch { /* unreadable: skip it */ }
+      for (const f of m ? m.files : []) if (!held.has(f.hash)) held.set(f.hash, { pack, path: f.path });
+    }
+    held.packs = names;
+    return held;
   }
 
   // ---------- fetching ----------
@@ -340,26 +382,19 @@ const ShareCore = (() => {
           if (msg.t === 'none') fail('none', `Your friend's browser isn't sharing ${msg.name || 'that pack'}.`);
           else if (msg.t === 'same') {
             const here = clean(msg.name);
+            if (msg.card && typeof ShareCards !== 'undefined') await ShareCards.arrived(here, msg.card, from, msg.v).catch(() => null);
             finish(resolve, { ...stored(here, msg.title), status: 'same', v: msg.v });
           } else if (msg.t === 'pack') {
             meta = msg;
             // every file this browser already holds, by hash, in any level
             // pack here — its own older copy of this one looked in first
             const own = clean(msg.name);
-            let names = [];
-            try { names = (await packStore.list('levels')).map(p => p.name).filter(n => !n.startsWith('__')); } catch { /* none */ }
-            names.sort((a, b) => (b === own) - (a === own));
-            const held = new Map();     // hash -> { pack, path }
-            for (const pack of names) {
-              let m = null;
-              try { m = await packStore.manifest('levels', pack); } catch { /* unreadable: skip it */ }
-              for (const f of m ? m.files : []) if (!held.has(f.hash)) held.set(f.hash, { pack, path: f.path });
-            }
+            const held = await heldFiles(own);
+            const update = held.packs.includes(own);
             const need = msg.files.filter(f => !held.has(f.hash));
             kept = msg.files.filter(f => held.has(f.hash)).map(f => ({ to: f.path, from: held.get(f.hash) }));
             total = need.reduce((n, f) => n + f.size, 0);
             const whole = msg.files.reduce((n, f) => n + f.size, 0);
-            const update = names.includes(own);
             if (diff) {
               finish(resolve, { ...stored(own, msg.title), status: 'diff', v: msg.v, update, bytes: total, whole,
                 fetch: need.map(f => ({ path: f.path, size: f.size })),
@@ -387,6 +422,8 @@ const ShareCore = (() => {
             try { await packStore.put('levels', meta.name, files, meta.title); }
             catch (err) { fail('store', 'Could not keep it: ' + err.message); return; }
             const here = clean(meta.name);
+            // its card, if good and this version's, and that it came from `from`
+            if (meta.card && typeof ShareCards !== 'undefined') await ShareCards.arrived(here, meta.card, from, meta.v).catch(() => null);
             finish(resolve, { ...stored(here, meta.title), v: meta.v, play: playUrl(here, files), fetched, fromHere: kept.length, bytes: total });
           }
         });
@@ -398,5 +435,5 @@ const ShareCore = (() => {
     });
   }
 
-  return { fmt, pageUrl, clean, shareId, linkFor, playUrl, sharedNames, isShared, setShared, sources, sourceNamed, haveHere, listPacks, packInfo, deletePacks, zipPack, readPackZip, share, fetchPack };
+  return { fmt, pageUrl, clean, shareId, linkFor, playUrl, sharedNames, isShared, setShared, sources, sourceNamed, haveHere, listPacks, packInfo, deletePacks, zipPack, readPackZip, share, heldFiles, fetchPack };
 })();

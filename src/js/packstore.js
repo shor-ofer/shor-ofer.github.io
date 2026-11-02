@@ -285,6 +285,7 @@ const packStore = (() => {
 
     manifestOf,
     hash: hashBytes,
+    manifestFrom,
 
     // A stored pack's manifest (manifestFrom), or null if there is no such
     // pack. Kept with the pack's entry when it is put; worked out from its

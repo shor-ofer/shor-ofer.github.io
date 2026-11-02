@@ -25,7 +25,7 @@
 // record as aligned lines. The share page also has views of its own for some
 // (share/index.html).
 const ShareCommands = (() => {
-  const C = ShareCore;
+  const C = ShareCore, K = ShareCards;
   const needs = (value, what) => { if (!value) throw Object.assign(new Error(`It needs ${what}.`), { code: 'usage' }); return value; };
 
   const fmt = C.fmt;
@@ -56,7 +56,7 @@ const ShareCommands = (() => {
       run: () => C.listPacks(),
       text: rows => !rows.length ? 'There are no level packs in this browser.'
         : table(rows, [['NAME', r => r.name], ['TITLE', r => r.title], ['SHARED', r => r.shared ? 'yes' : ''], ['FILES', r => r.files, true],
-          ['SIZE', r => r.size == null ? '' : fmt(r.size), true], ['VERSION', r => r.v || ''], ['UPDATED', r => day(r.updated)]]) },
+          ['SIZE', r => r.size == null ? '' : fmt(r.size), true], ['VERSION', r => r.v || ''], ['CARD', r => r.id ? `${r.id} #${r.seq}` : ''], ['UPDATED', r => day(r.updated)]]) },
     { name: 'store', about: 'what this browser keeps for this address: its packs, their files, and the bytes kept — each file once, however many packs hold it',
       run: async () => {
         const s = await packStore.stats();
@@ -120,9 +120,70 @@ const ShareCommands = (() => {
         if (replaced && !await io.confirm(`Replace “${z.name}” in this browser with ${file.name}?`)) return { cancelled: true };
         await packStore.put('levels', z.name, z.files, z.title);
         const m = await packStore.manifest('levels', z.name);
-        return { name: z.name, title: z.title, files: z.files.length, size: m.files.reduce((n, f) => n + f.size, 0), v: m.v, replaced, from: file.name, url: packStore.url('levels', z.name) };
+        // its card, if the zip has a good one of these files
+        const card = z.card ? await K.arrived(z.name, z.card, null, m.v).catch(() => null) : null;
+        return { name: z.name, title: z.title, files: z.files.length, size: m.files.reduce((n, f) => n + f.size, 0), v: m.v, id: card ? card.id : null, seq: card ? card.seq : null,
+          replaced, from: file.name, url: packStore.url('levels', z.name) };
       },
-      text: r => r.cancelled ? 'Nothing kept.' : `${r.replaced ? 'Replaced' : 'Kept'} ${r.title} (${r.name}) in this browser from ${r.from} — ${r.files} files, ${fmt(r.size)}, version ${r.v}.` },
+      text: r => r.cancelled ? 'Nothing kept.' : `${r.replaced ? 'Replaced' : 'Kept'} ${r.title} (${r.name}) in this browser from ${r.from} — ${r.files} files, ${fmt(r.size)}, version ${r.v}.`
+        + (r.id ? `\nIts card: ${r.id}, version ${r.seq}.` : '') },
+    { name: 'author', value: 'name?', options: { export: '', import: '' },
+      about: "this browser as an author: its id, which every pack made here is named under. With a value, the name it signs with; -export saves its key to a file — keep it: without it, nobody can sign new versions of those packs — and -import takes one back; asks first",
+      run: async (p, io) => {
+        if ('import' in p) {
+          const file = await io.pick('.json,application/json', 'Choose an author key file');
+          if (!file) return { cancelled: true };
+          let obj;
+          try { obj = JSON.parse(await file.text()); } catch { throw Object.assign(new Error(`${file.name} is no author key file.`), { code: 'notauthor' }); }
+          const now = await K.whoAmI();
+          if (obj.id !== now.id && !await io.confirm(`Sign as ${obj.name || obj.id} from now on, instead of ${now.name || now.id}? Export this one first if you'll want it again.`)) return { cancelled: true };
+          return { ...await K.importAuthor(obj), imported: file.name };
+        }
+        const me = p.author ? await K.setName(p.author) : await K.whoAmI();
+        if ('export' in p) {
+          const key = await K.exportAuthor();
+          const filename = `wtw-author-${key.id}.json`;
+          await io.save(new Blob([JSON.stringify(key, null, 1)], { type: 'application/json' }), filename);
+          return { ...me, saved: filename };
+        }
+        return me;
+      },
+      text: r => r.cancelled ? 'Nothing changed.' : `author ${r.id}${r.name ? ` — ${r.name}` : ''}`
+        + (r.saved ? `\nSaved its key as ${r.saved}. Keep it safe: whoever has it can sign as you.` : '')
+        + (r.imported ? `\nSigning with the key from ${r.imported} now.` : '') },
+    { name: 'card', value: 'name', options: { web: 'url', noweb: '' },
+      about: "a level pack's signed card: who made it, its version, every file, and where it is to be found — made (and signed) here for a pack of yours. -web <url> adds a folder it is put up in (download it, unzip it there: card.json goes with it); -noweb takes them all off",
+      run: async p => {
+        const name = needs(p.card, 'a level pack name');
+        const now = K.stored(name);
+        let web;
+        if ('noweb' in p) web = [];
+        else if (p.web) web = [...new Set([...(now ? now.card.web : []), p.web.endsWith('/') ? p.web : p.web + '/'])];
+        const card = await K.cardFor(name, { web });
+        const me = await K.whoAmI();
+        return { ...card, mine: card.id.startsWith(me.id + '/'), peers: (K.stored(name) || { peers: [] }).peers };
+      },
+      text: r => [
+        `${r.title} — ${r.id}, version ${r.seq} (${r.v}), ${r.files.length} files`,
+        `author   ${r.author.name || r.id.split('/')[0]}${r.mine ? ' (you)' : ''}`,
+        `origin   ${r.origin}`,
+        `web      ${r.web.length ? r.web.join(' ') : '—'}`,
+        `came via ${r.peers.length ? r.peers.join(' ') : '—'}`,
+        `made     ${day(r.made)}`
+      ].join('\n') },
+    { name: 'latest', value: 'name', options: { get: '' },
+      about: "whether there is a newer version of a level pack kept here: asks its author's browser, the browsers it came from, and its web folders — each answer checked against the author's key. -get fetches it: only the files not here",
+      run: async (p, io) => {
+        const r = await K.latest(needs(p.latest, 'a level pack name'));
+        if (!r.newest || !('get' in p)) return { ...r, newest: r.newest && { seq: r.newest.card.seq, v: r.newest.card.v, from: r.newest.from.peer || r.newest.from.web } };
+        io.progress({ text: `Fetching version ${r.newest.card.seq} from ${r.newest.from.peer || r.newest.from.web}…` });
+        const got = await K.update(r.name, r.newest, io.progress);
+        return { ...r, newest: { seq: r.newest.card.seq, v: r.newest.card.v, from: r.newest.from.peer || r.newest.from.web }, got };
+      },
+      text: r => (r.got ? `${r.title} is at version ${r.newest.seq} now (was ${r.seq}): ${r.got.fetched} files fetched, ${fmt(r.got.bytes)}.`
+          : r.newest ? `${r.title}: version ${r.newest.seq} is out (here: ${r.seq}), at ${r.newest.from}. share latest ${r.name} -get fetches it.`
+          : `${r.title}: version ${r.seq} here is the newest found.`)
+        + (r.tried.length ? '\n\n' + table(r.tried, [['ASKED', t => t.from], ['ANSWER', t => t.answer]]) : '\n(nowhere to ask: no author browser, none it came from, no web folder)') },
     // a friend's link (?from=<id>&get=<name>&v=<version>) is this command
     { name: 'get', value: 'name', options: { from: 'id!', v: 'version', diff: '', check: '' },
       about: "fetch a level pack from another browser — a friend's link; only the files not here, and nothing at all if this one has its version. -diff only lists them; -check asks even so",

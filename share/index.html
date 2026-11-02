@@ -184,6 +184,7 @@
 
 <script src="/src/js/zip.js"></script>
 <script src="/share/core.js"></script>
+<script src="/share/cards.js"></script>
 <script src="/share/commands.js"></script>
 <script>
 const $ = s => document.querySelector(s);
@@ -323,7 +324,30 @@ async function haveMode(src) {
     $('#haveCheck').hidden = false;
     $('#haveCheck').onclick = () => { const u = new URL(location.href); u.searchParams.set('check', '1'); location.href = u.href; };
   }
+  newerIn(src);
   await sendMode(src.key);
+}
+
+// Meanwhile, whether its author put out a newer version: asked of its
+// author's browser, those it came from, its web folders. Playing doesn't
+// wait for it; the update is offered.
+async function newerIn(src) {
+  if (!src.key.startsWith('idb:') || !ShareCards.stored(src.name)) return;
+  let r;
+  try { r = await ShareCards.latest(src.name); } catch { return; }
+  if (!r.newest) return;
+  const where = r.newest.from.peer || new URL(r.newest.from.web).host;
+  $('#haveCheck').hidden = false;
+  $('#haveCheck').textContent = `⬇ Get version ${r.newest.card.seq} (you have ${r.seq})`;
+  $('#haveCheck').title = `From ${where}`;
+  $('#haveCheck').onclick = async () => {
+    $('#haveCheck').disabled = true;
+    try {
+      const got = await ShareCards.update(src.name, r.newest, d => d.text && say('#sendStatus', d.text));
+      say('#sendStatus', `Version ${got.seq} is here now: ${got.fetched} files fetched, ${fmt(got.bytes)}.`, 'ok');
+      $('#haveCheck').hidden = true;
+    } catch (err) { say('#sendStatus', err.message, 'err'); $('#haveCheck').disabled = false; }
+  };
 }
 
 // ---------- fetching ----------
