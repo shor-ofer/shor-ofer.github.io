@@ -22,10 +22,11 @@
   -url on any share command prints its address instead of running it (as
   does url <share …>). Its own commands: help, clear,
   open <share …> (that address as the page shows it), jobs, stop <n>.
-  A command ending in & runs in the background; one that goes on (sharing)
+  A command ending in & runs in the background; one that goes on (sharing -watch)
   moves there by itself once it is going. ↑/↓ history, Ctrl+C stops the one
   running, Ctrl+L clears.
 -->
+<script src="/src/js/sharehost.js"></script>
 <script src="/share/core.js"></script>
 <script src="/share/cards.js"></script>
 <script src="/share/commands.js"></script>
@@ -189,6 +190,8 @@ const OWN = {
     'Every share command is the share page\'s own: the command, then its -options — each a parameter of its address:',
     '  share help               what they are (from share/commands.js)',
     '  share list               the level packs kept in this browser',
+    '  share sharing [on|off]   how sharing stands, or switch it for the whole browser',
+    '  share private <name>     friends asking for it get nothing; share public <name> undoes it',
     '  share del <name>         delete one (asks first)',
     "  share get <name> -from <id> -diff   what a friend's link would fetch",
     '  share download <name>    save a level pack as a .zip; share upload [<name>] keeps one from a .zip',

@@ -479,6 +479,8 @@
      the browser (a URL naming /__idb/) needs its service worker -->
 <script src="js/packstore.js"></script>
 <script>if (decodeURIComponent(location.search).includes(packStore.PREFIX)) packStore.boot();</script>
+<!-- this browser's room: it shares its level packs while any page of it is open -->
+<script src="js/sharehost.js"></script>
 <script src="js/sound.js"></script>
 <script src="js/tileset.js"></script>
 <script src="js/atlas.js"></script>

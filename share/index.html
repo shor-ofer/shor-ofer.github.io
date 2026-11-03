@@ -14,13 +14,16 @@
 
   The two browsers find each other through PeerJS's public broker
   (0.peerjs.com), which only passes the handshake; the files go straight
-  between them over a WebRTC data channel. The sharer's page has to stay open.
+  between them over a WebRTC data channel. Sharing belongs to the browser, not
+  to this page (src/js/sharehost.js): it answers while any page of the game or
+  its tools is open there, unless it is switched off, for every pack not made
+  private.
 
     share/                     pick a level pack and share it
     share/?<command>...        any command of share/commands.js — ?help lists
                                them: ?list, ?del, ?info, ?id, ?link, ?get
                                (a friend's link: ?get=<name>&from=<id>&v=…),
-                               ?pack (sharing)
+                               ?pack (its link), ?sharing, ?public, ?private
     ...&json                   its answer as JSON instead of a view: printed,
                                or, in a frame of a page of this address
                                (share/cli.html, the level editor's Import),
@@ -32,9 +35,8 @@
   levelpacks/ aren't touched.
 
   Every browser has one id of its own (shareId, kept in localStorage), so its
-  link works whenever a share page is open in that browser, whichever pack
-  that page was opened on — the friend asks for the pack by name. Only one
-  page at a time can hold the id; another waits for it.
+  link works whenever any page of that browser is open, whichever page and
+  whichever pack it is on — the friend asks for the pack by name.
 
   The link carries the pack's version too (v, a hash of its manifest). A
   friend whose copy is that version plays it without asking the other browser
@@ -54,6 +56,7 @@
 -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.4/peerjs.min.js"></script>
 <script src="/src/js/packstore.js"></script>
+<script src="/src/js/sharehost.js"></script>
 <style>
   :root {
     --bg:#17122a; --panel:#211a3a; --panel2:#2b2249; --line:#3d3263; --line2:#52457f;
@@ -122,10 +125,11 @@
   <!-- the one sharing -->
   <section id="sendView" class="card" hidden>
     <h2 id="sendTitle">Share a level pack</h2>
-    <p id="sendNote">Pick one, then send the link to a friend. It stays the same for this browser — it works whenever a share page is open here, and the pack comes straight from your browser.</p>
+    <p id="sendNote">Send a friend the link of a public pack. It stays the same for this browser, and works whenever any page of the game or its tools is open here; the pack comes straight from your browser.</p>
     <div class="row" id="haveRow" hidden><button class="go play" id="havePlay">▶ Play</button><button id="haveCheck" hidden>Check for a newer version</button></div>
+    <div class="row"><span class="status" id="sharingStatus" style="flex:1;min-width:12ch"></span><button id="sharingBtn"></button></div>
     <label>Level pack <select id="packSel"></select></label>
-    <div class="row"><button class="go" id="startBtn">Share it</button><span class="status" id="sendStatus"></span></div>
+    <div class="row"><button id="visBtn"></button><span class="status" id="sendStatus"></span></div>
     <div id="linkBox" class="row" hidden>
       <input id="linkOut" readonly aria-label="The link to send">
       <button id="copyBtn">Copy</button>
@@ -250,50 +254,64 @@ async function outputMode(asText) {
 }
 
 // ---------- sharing ----------
-// Pick a level pack and share it; `auto` (with &go): the key of one to share
-// at once.
-async function sendMode(auto) {
+// How this browser's sharing stands, switched here; a level pack, public or
+// private, and its link. `want`: the key or name of one to pick.
+async function sendMode(want) {
   $('#sendView').hidden = false;
   const list = await ShareCore.sources();
   const sel = $('#packSel');
   sel.innerHTML = list.length ? list.map(p => `<option value="${esc(p.key)}">${esc(p.label)}</option>`).join('')
     : '<option>— no level packs here —</option>';
-  const want = auto || P.pack;
-  const picked = want && (list.find(p => p.key === want) || list.find(p => p.key === 'idb:' + want));
+  const name = want || P.pack;
+  const picked = name && (list.find(p => p.key === name) || list.find(p => p.key === 'idb:' + name));
   if (picked) sel.value = picked.key;
-  $('#startBtn').disabled = !list.length;
+  $('#visBtn').hidden = !list.length;
 
-  $('#startBtn').onclick = async () => {
+  const words = {
+    off: 'Sharing is off in this browser — nobody can fetch anything from it.',
+    sharing: 'Sharing is on — this browser answers friends while any of its pages is open.',
+    connecting: 'Sharing is on — connecting…',
+    nopage: 'Sharing is on — waiting for a page to answer…'
+  };
+  const drawSharing = async () => {
+    $('#sharingBtn').textContent = ShareCore.sharingOn() ? 'Switch off' : 'Switch on';
+    const s = await ShareCore.sharingStatus();
+    say('#sharingStatus', s.trouble && s.state !== 'sharing' ? `${words[s.state]} ${s.trouble}` : words[s.state], s.state === 'sharing' ? 'ok' : s.state === 'off' ? 'err' : '');
+    await drawPack();
+  };
+  const drawPack = async () => {
+    const pack = list.find(p => p.key === sel.value);
+    if (!pack) { $('#linkBox').hidden = true; return; }
+    const open = ShareCore.isPublic(pack.name);
+    $('#visBtn').textContent = open ? '🌐 Public — make it private' : '🔒 Private — make it public';
+    say('#sendStatus', open ? '' : 'Friends asking for it get nothing, as if it were not here.');
+    $('#linkBox').hidden = !open;
+    if (open) $('#linkOut').value = ShareCore.linkFor(pack.name, await pack.version());
+  };
+  $('#sharingBtn').onclick = () => {
+    try { ShareCore.setSharing(!ShareCore.sharingOn()); } catch (err) { say('#sendStatus', err.message, 'err'); return; }
+    drawSharing();
+  };
+  $('#visBtn').onclick = () => {
     const pack = list.find(p => p.key === sel.value);
     if (!pack) return;
-    // a click on Share it is what shares a pack
-    try { ShareCore.setShared(pack.name, true); } catch (err) { say('#sendStatus', err.message, 'err'); return; }
-    $('#startBtn').disabled = sel.disabled = true;
-    say('#sendStatus', 'Reading the pack…');
-    const rows = new Map();
-    let ready = false;
-    try {
-      const line = await ShareCore.share(pack.key, {
-        ready: d => { ready = true; say('#sendStatus', `Ready — ${d.files} files, ${fmt(d.size)}. Waiting for a friend…`, 'ok'); },
-        friend: (n, r) => friendRow(rows, n, r),
-        trouble: text => say('#sendStatus', text, 'err')
-      });
-      $('#linkOut').value = line.link;
-      $('#linkBox').hidden = false;
-      if (!ready) say('#sendStatus', 'Opening a line…');
-    } catch (err) {
-      say('#sendStatus', 'Could not share it: ' + err.message, 'err');
-      $('#startBtn').disabled = sel.disabled = false;
-    }
+    try { ShareCore.setPublic(pack.name, !ShareCore.isPublic(pack.name)); } catch (err) { say('#sendStatus', err.message, 'err'); return; }
+    drawPack();
   };
+  sel.onchange = drawPack;
   $('#copyBtn').onclick = async () => {
     try { await navigator.clipboard.writeText($('#linkOut').value); $('#copyBtn').textContent = 'Copied'; }
     catch { $('#linkOut').select(); document.execCommand('copy'); $('#copyBtn').textContent = 'Copied'; }
     setTimeout(() => $('#copyBtn').textContent = 'Copy', 1500);
   };
-  // at once only for a pack shared already: a link alone shares nothing
-  if (picked && auto && ShareCore.isShared(picked.name)) $('#startBtn').click();
-  else if (picked && auto) say('#sendStatus', `Press Share it to let friends with your link fetch ${picked.title}.`);
+  // what other pages of this browser do, and friends coming and going
+  const rows = new Map();
+  ShareCore.watchSharing(m => {
+    if (m.t === 'friend') friendRow(rows, m.friend, m);
+    else drawSharing();
+  });
+  addEventListener('storage', e => { if (e.key === 'wtwPrivatePacks') drawPack(); });
+  await drawSharing();
 }
 
 // One friend's row: who, how far.
@@ -316,7 +334,7 @@ function friendRow(rows, n, r) {
 // version (or its own link): nothing to fetch. Play it, and share it from here.
 async function haveMode(src) {
   $('#sendTitle').textContent = `You already have ${src.title}`;
-  $('#sendNote').textContent = 'Nothing to fetch — play it, or pass it on: this page is sharing it now, so send your own link to a friend, and keep the page open while they fetch it.';
+  $('#sendNote').textContent = 'Nothing to fetch — play it, or pass it on: send your own link to a friend, and keep any page of the game open here while they fetch it.';
   $('#haveRow').hidden = false;
   $('#havePlay').onclick = async () => { location.href = src.play(await src.load()); };
   // opened from someone else's link: theirs may have changed since
@@ -384,7 +402,7 @@ async function getMode() {
       if (!await packStore.ready()) { say('#getStatus', "It is saved, but this address can't play it — see the box at the top.", 'err'); return; }
       location.href = r.play;
     };
-    $('#passBtn').onclick = () => { location.href = `${pageUrl}?pack=${encodeURIComponent(r.key)}&go=1`; };
+    $('#passBtn').onclick = () => { location.href = `${pageUrl}?pack=${encodeURIComponent(r.key)}`; };
     $('#playBtn').focus();
   }
 }
@@ -398,7 +416,7 @@ async function offerOwn(note = 'You have a copy of it here already — play that
   $('#getBar').parentElement.hidden = true;
   $('#doneRow').hidden = false;
   $('#playBtn').onclick = async () => { location.href = src.play(await src.load()); };
-  $('#passBtn').onclick = () => { location.href = `${pageUrl}?pack=${encodeURIComponent(src.key)}&go=1`; };
+  $('#passBtn').onclick = () => { location.href = `${pageUrl}?pack=${encodeURIComponent(src.key)}`; };
 }
 
 // &diff: what opening the link would fetch, and what it would take from the
@@ -417,15 +435,16 @@ function showDiff(r) {
 }
 
 // ---------- the list ----------
-// Every level pack kept in this browser, each to play, to share (this page,
-// with it picked and shared at once), or to delete.
+// Every level pack kept in this browser, each to play, to make public or
+// private, to share (this page, with it picked), or to delete.
 async function listMode() {
   $('#listView').hidden = false;
   const draw = async () => {
     const list = (await ShareCore.sources()).filter(p => p.key.startsWith('idb:'));
     $('#listRows').innerHTML = list.map((p, i) => `<div class="row">
-      <span class="status" style="flex:1;min-width:12ch">${esc(p.title)}<br><small>${p.count} files${ShareCore.isShared(p.name) ? ' · shared' : ''}</small></span>
+      <span class="status" style="flex:1;min-width:12ch">${esc(p.title)}<br><small>${p.count} files · ${ShareCore.isPublic(p.name) ? 'public' : 'private'}</small></span>
       <button class="go" data-play="${i}">▶ Play</button>
+      <button data-vis="${i}">${ShareCore.isPublic(p.name) ? '🔒 Make private' : '🌐 Make public'}</button>
       <button data-share="${i}">Share</button>
       <button data-out="${i}" title="Delete it from this browser">🗑 Delete</button></div>`).join('');
     $('#listAllRow').hidden = list.length < 2;
@@ -439,9 +458,10 @@ async function listMode() {
     $('#listRows').onclick = async e => {
       const b = e.target.closest('button');
       if (!b) return;
-      const p = list[+(b.dataset.play ?? b.dataset.share ?? b.dataset.out)];
+      const p = list[+(b.dataset.play ?? b.dataset.vis ?? b.dataset.share ?? b.dataset.out)];
       if (b.dataset.play) { b.disabled = true; location.href = p.play(await p.load()); }
-      else if (b.dataset.share) location.href = `${pageUrl}?pack=${encodeURIComponent(p.key)}&go=1`;
+      else if (b.dataset.vis) { ShareCore.setPublic(p.name, !ShareCore.isPublic(p.name)); await draw(); }
+      else if (b.dataset.share) location.href = `${pageUrl}?pack=${encodeURIComponent(p.key)}`;
       else {
         if (!confirm(`Delete ${p.title} from this browser? The game in it goes too.`)) return;
         b.disabled = true;
@@ -538,7 +558,7 @@ else {
     $('#originOut').textContent = location.origin;
     $('#flagsUrl').textContent = /Edg\//.test(navigator.userAgent) ? 'edge://flags' : 'chrome://flags';
   }
-  const views = { help: helpMode, del: delMode, list: listMode, get: getMode, pack: () => sendMode('go' in P ? P.pack : undefined) };
+  const views = { help: helpMode, del: delMode, list: listMode, get: getMode, pack: () => sendMode(P.pack) };
   const c = ShareCommands.find(P);
   if (!c) sendMode();
   else if (views[c.name]) views[c.name]();

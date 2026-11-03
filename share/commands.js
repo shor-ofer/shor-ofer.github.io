@@ -29,6 +29,19 @@ const ShareCommands = (() => {
   const needs = (value, what) => { if (!value) throw Object.assign(new Error(`It needs ${what}.`), { code: 'usage' }); return value; };
 
   const fmt = C.fmt;
+  // A pack here by name, or the error of there being none.
+  const packNamed = async name => {
+    const src = await C.sourceNamed(name);
+    if (!src) throw Object.assign(new Error(`There is no level pack called ${name} here.`), { code: 'missing' });
+    return src;
+  };
+  const offNote = r => r.sharing === false ? '\nSharing is off in this browser: nobody can fetch anything until `share sharing on`.' : '';
+  const statusText = r => ({
+    off: 'Sharing is off in this browser.',
+    sharing: `Sharing is on: this browser answers friends, through ${r.page || 'one of its pages'} (${r.pages} page${r.pages === 1 ? '' : 's'} open).`,
+    connecting: `Sharing is on, and connecting through ${r.page || 'one of its pages'}…${r.trouble ? ` ${r.trouble}` : ''}`,
+    nopage: 'Sharing is on, but no page of the game or its tools is open to answer.'
+  }[r.state] || r.state);
   const day = iso => iso ? iso.slice(0, 16).replace('T', ' ') : '';
 
   const COMMANDS = [
@@ -55,7 +68,8 @@ const ShareCommands = (() => {
     { name: 'list', about: 'the level packs kept in this browser',
       run: () => C.listPacks(),
       text: rows => !rows.length ? 'There are no level packs in this browser.'
-        : table(rows, [['NAME', r => r.name], ['TITLE', r => r.title], ['SHARED', r => r.shared ? 'yes' : ''], ['FILES', r => r.files, true],
+        : (C.sharingOn() ? '' : 'Sharing is off in this browser: nobody can fetch these.\n\n')
+          + table(rows, [['NAME', r => r.name], ['TITLE', r => r.title], ['STATE', r => r.public ? 'public' : 'private'], ['FILES', r => r.files, true],
           ['SIZE', r => r.size == null ? '' : fmt(r.size), true], ['VERSION', r => r.v || ''], ['CARD', r => r.id ? `${r.id} #${r.seq}` : ''], ['UPDATED', r => day(r.updated)]]) },
     { name: 'store', about: 'what this browser keeps for this address: its packs, their files, and the bytes kept — each file once, however many packs hold it',
       run: async () => {
@@ -71,28 +85,46 @@ const ShareCommands = (() => {
         `saved    ${fmt(r.saved)}${r.bytes ? ` (${Math.round(100 * r.saved / r.bytes)}%)` : ''}`,
         r.usage != null ? `browser  ${fmt(r.usage)} used here, of ${fmt(r.quota)} allowed` : null
       ].filter(Boolean).join('\n') },
-    { name: 'open', value: 'name', about: 'share a level pack: friends with your share link may fetch it whenever a share page is open here; asks first',
+    { name: 'sharing', value: 'on|off?', options: { watch: '' },
+      about: "how this browser's sharing stands, or switch it on or off for the whole browser. While it is on and any page of the game or its tools is open here, friends can fetch its public packs. -watch goes on telling what friends fetch",
       run: async (p, io) => {
-        const src = await C.sourceNamed(needs(p.open, 'a level pack name'));
-        if (!src) throw Object.assign(new Error(`There is no level pack called ${p.open} here.`), { code: 'missing' });
-        const info = await C.packInfo(src.key);
-        const result = { name: src.name, title: src.title, shared: true, link: C.linkFor(src.name, info.v) };
-        if (C.isShared(src.name)) return { ...result, already: true };
-        if (!await io.confirm(`Share “${src.title}”? Anyone with your share link can fetch it while a share page is open in this browser.`)) return { name: src.name, title: src.title, shared: false, cancelled: true };
-        C.setShared(src.name, true);
-        return result;
+        const say = p.sharing;
+        if (say && say !== 'on' && say !== 'off') throw Object.assign(new Error('Sharing is on or off.'), { code: 'usage' });
+        if (say) C.setSharing(say === 'on');
+        const now = await C.sharingStatus(say === 'on' ? 6000 : 2500);
+        if (!('watch' in p)) return now;
+        io.event({ event: 'status', ...now });
+        C.watchSharing(m => io.event(m.t === 'friend' ? { event: 'friend', ...m } : { event: m.t, ...m }));
+        io.stay();
+        return new Promise(() => {});
       },
-      text: r => r.cancelled ? `${r.title} is not shared.` : `${r.title} is ${r.already ? 'shared already' : 'shared now'}. Its link:\n${r.link}` },
-    { name: 'close', value: 'name?', options: { all: '' }, about: 'stop sharing a level pack — or, with -all, every one; friends asking for it get nothing',
-      run: p => {
-        const names = 'all' in p && !p.close ? [...C.sharedNames()] : [C.clean(needs(p.close, 'a level pack name, or -all'))];
-        for (const n of names) C.setShared(n, false);
-        return { closed: names };
+      text: statusText,
+      eventText: e => e.event === 'status' ? statusText(e)
+        : e.event === 'friend' ? (e.state || e.progress == null ? `friend ${e.friend}${e.title ? ` — ${e.title}` : ''}: ${e.text}` : null)
+        : e.event === 'state' ? `${e.state}${e.page ? ` — ${e.page}` : ''}${e.trouble ? ` — ${e.trouble}` : ''}` : null },
+    { name: 'public', value: 'name?', options: { all: '' }, about: 'make a level pack public, as every pack is unless made private — or, with -all, every one',
+      run: async p => {
+        if ('all' in p && !p.public) { C.setAllPublic(); return { public: 'all', sharing: C.sharingOn() }; }
+        const src = await packNamed(needs(p.public, 'a level pack name, or -all'));
+        C.setPublic(src.name, true);
+        return { public: src.name, title: src.title, sharing: C.sharingOn() };
       },
-      text: r => r.closed.length ? `Not shared any more: ${r.closed.join(', ')}.` : 'No pack was shared.' },
+      text: r => (r.public === 'all' ? 'Every level pack here is public.' : `${r.title} is public.`) + offNote(r) },
+    { name: 'private', value: 'name?', options: { all: '' }, about: 'make a level pack private: friends asking for it get nothing, as if it were not here — or, with -all, every one here now',
+      run: async p => {
+        if ('all' in p && !p.private) {
+          const names = [...new Set((await C.sources()).map(x => x.name))];
+          for (const n of names) C.setPublic(n, false);
+          return { private: names };
+        }
+        const src = await packNamed(needs(p.private, 'a level pack name, or -all'));
+        C.setPublic(src.name, false);
+        return { private: [src.name], title: src.title };
+      },
+      text: r => r.title ? `${r.title} is private.` : r.private.length ? `Private now: ${r.private.join(', ')}.` : 'There are no level packs here.' },
     { name: 'info', value: 'name', about: "a level pack's version and every file in it — one kept here, or on disk",
       run: p => C.packInfo(needs(p.info, 'a level pack name')),
-      text: r => `${r.title} (${r.name}) — ${r.where === 'disk' ? 'on disk' : 'in this browser'}, ${r.url}\n`
+      text: r => `${r.title} (${r.name}) — ${r.public ? 'public' : 'private'}, ${r.where === 'disk' ? 'on disk' : 'in this browser'}, ${r.url}\n`
         + `version ${r.v}, ${r.files.length} files, ${fmt(r.size)}\n\n`
         + table(r.files, [['PATH', f => f.path], ['SIZE', f => fmt(f.size), true], ['HASH', f => f.hash]]) },
     { name: 'id', about: "this browser's share id — the from= of the links it makes",
@@ -197,26 +229,18 @@ const ShareCommands = (() => {
           + (r.here.length ? '\n\n' + table(r.here, [['HERE', f => f.path], ['IN', f => f.pack === r.name && f.as === f.path ? '' : f.pack]]) : ''),
         kept: () => `${r.title}, version ${r.v}, is in this browser now: ${r.fetched} files fetched (${fmt(r.bytes)}), ${r.fromHere} from packs here.\nplay it: ${new URL(r.play, location.origin).href}`
       }[r.status] || (() => plain(r)))() },
-    { name: 'pack', value: 'name', options: { go: '' },
-      about: 'share a level pack (idb:<name> for one kept here when one on disk has the same name): goes on, serving each friend, until stopped; asks first if it isn\'t shared yet. On the page, -go starts at once — for a pack shared already',
+    { name: 'pack', value: 'name',
+      about: "a level pack here, to send to a friend: its link, and how sharing stands. If it is private, asks whether to make it public; it doesn't switch sharing on",
       run: async (p, io) => {
-        const src = await C.sourceNamed(needs(p.pack, 'a level pack name'));
-        if (!src) throw Object.assign(new Error(`There is no level pack called ${p.pack} here.`), { code: 'missing' });
-        if (!C.isShared(src.name)) {
-          if (!await io.confirm(`Share “${src.title}”? Anyone with your share link can fetch it while a share page is open in this browser.`)) return { name: src.name, cancelled: true };
-          C.setShared(src.name, true);
+        const src = await packNamed(needs(p.pack, 'a level pack name'));
+        if (!C.isPublic(src.name)) {
+          if (!await io.confirm(`Make “${src.title}” public? Anyone with your share link can fetch it while a page of the game is open in this browser.`)) return { name: src.name, title: src.title, public: false };
+          C.setPublic(src.name, true);
         }
-        return new Promise((resolve, reject) => C.share(src.key, {
-          ready: d => { io.event({ event: 'ready', ...d }); io.stay(); },
-          friend: (n, r) => io.event({ event: 'friend', friend: n, ...r }),
-          trouble: (text, final) => final ? reject(new Error(text)) : io.event({ event: 'trouble', text })
-        }).catch(reject));
+        const v = await src.version();
+        return { name: src.name, title: src.title, public: true, v, link: C.linkFor(src.name, v), sharing: await C.sharingStatus() };
       },
-      text: r => r.cancelled ? 'Not shared.' : plain(r),
-      // a friend's file-by-file progress only on the page; here, how each ends
-      eventText: e => e.event === 'ready' ? `Sharing ${e.title} — ${e.files} files, ${fmt(e.size)}, version ${e.v}. The link:\n${e.link}`
-        : e.event === 'friend' ? (e.state || e.progress == null ? `friend ${e.friend}${e.title ? ` — ${e.title}` : ''}: ${e.text}` : null)
-        : e.text }
+      text: r => !r.public ? `${r.title} stays private.` : `${r.title} (version ${r.v})\n${r.link}\n${statusText(r.sharing)}` }
   ];
 
   // ---------- text ----------

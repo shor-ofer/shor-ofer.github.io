@@ -17,7 +17,14 @@ self.addEventListener('fetch', e => {
     try {
       const rec = await packStore.get(want.kind, want.name, want.path);
       if (!rec) return new Response(`not in the browser's packs: ${url.pathname}`, { status: 404, headers: { 'Content-Type': 'text/plain' } });
-      return new Response(rec.data, { status: 200, headers: { 'Content-Type': rec.type, 'Cache-Control': 'no-store' } });
+      const headers = { 'Content-Type': rec.type, 'Cache-Control': 'no-store' };
+      // a pack's page built before the game joined this browser's room
+      // (src/js/sharehost.js) joins it all the same
+      if (want.kind === 'levels' && String(rec.type).startsWith('text/html')) {
+        const page = await new Response(rec.data).text();
+        return new Response(page.includes('wtwShareHost') ? page : page + '\n<script src="/src/js/sharehost.js"></script>\n', { status: 200, headers });
+      }
+      return new Response(rec.data, { status: 200, headers });
     } catch (err) {
       return new Response(`could not read the browser's packs: ${err.message}`, { status: 500, headers: { 'Content-Type': 'text/plain' } });
     }

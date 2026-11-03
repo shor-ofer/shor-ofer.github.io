@@ -287,6 +287,8 @@
   <span class="grow"></span>
   <button id="importBtn" title="Add a level pack: one in levelpacks/index.json, or a .zip">Import…</button>
   <button id="shareBtn" class="packOnly" title="Share the open level pack with a friend, peer to peer: a link they open to fetch it into their browser and play it">🔗 Share</button>
+  <button id="visBtn" class="packOnly"></button>
+  <button id="sharingBtn"></button>
   <button id="downloadBtn" class="go packOnly" title="Save the open level pack, with its asset pack, as a .zip — clears its *">⬇ Export .zip</button>
   <button id="revertBtn" class="packOnly" title="Put the open level pack back as it was when it was last exported or imported" disabled>⟲ Revert</button>
   <button id="delPackBtn" class="packOnly">Remove</button>
@@ -457,6 +459,8 @@
 <!-- the pack store the three tools share, and the worker that serves it -->
 <script src="../src/js/packstore.js"></script>
 <script>packStore.boot();</script>
+<script src="../src/js/sharehost.js"></script>
+<script src="../share/core.js"></script>
 <script src="../src/js/tileset.js"></script>
 <script src="../src/js/atlas.js"></script>
 <!-- the game's classes, for what they declare: the glyphs a palette offers and
@@ -1881,6 +1885,7 @@ function setOptions(sel, html) {
 }
 
 function refreshPacks() {
+  drawSharing();
   document.body.classList.toggle('no-pack', noPack);
   if (noPack) { packPickName.textContent = '— no level packs —'; return; }
   const live = { ...packs[packIndex], name: packName, levels };
@@ -2967,8 +2972,12 @@ async function mirrorNow() {
     let slot = packSlug(), n = 2;
     while (taken.has(slot)) slot = packSlug() + '-' + n++;
     const files = await levelPackFiles(true);
+    // private before there is anything to fetch, and under a new name too
+    const secret = packIsPrivate(p);
+    ShareCore.setPublic(slot, !secret);
     await packStore.put('levels', slot, files, packName || 'Level Pack');
-    if (p.mirror && p.mirror !== slot) await packStore.remove('levels', p.mirror);
+    if (p.mirror && p.mirror !== slot) { await packStore.remove('levels', p.mirror); ShareCore.setPublic(p.mirror, true); }
+    p.private = secret;
     p.mirror = slot;
     p.mirrorSum = key;
     localStorage.setItem(STORE_KEY, JSON.stringify({ packs, packIndex, objGlyphs: OBJECTS.map(o => o.glyph) }));
@@ -2984,10 +2993,39 @@ async function storeTrouble() {
   if (!navigator.serviceWorker.controller) return 'the service worker is not looking after this page yet — reload it once';
   return '';
 }
+// A level pack is public unless made private, which goes by its copy in the
+// pack store, wherever that was changed from (the web shell too); with no
+// copy yet, by what was asked for here.
+function packIsPrivate(p) { return p.mirror ? !ShareCore.isPublic(p.mirror) : !!p.private; }
+function drawSharing() {
+  const p = packs[packIndex], vis = document.getElementById('visBtn'), all = document.getElementById('sharingBtn');
+  const secret = !!p && packIsPrivate(p), on = ShareCore.sharingOn();
+  vis.textContent = secret ? '🔒 Private' : '🌐 Public';
+  vis.title = secret ? 'Friends asking for this level pack get nothing — click to make it public'
+    : 'Friends with your share link can fetch this level pack — click to make it private';
+  all.textContent = on ? '📡 Sharing on' : '📡 Sharing off';
+  all.title = on ? 'This browser answers friends for its public level packs while any of its pages is open — click to switch that off, for the whole browser'
+    : 'This browser answers nobody — click to switch sharing on, for the whole browser';
+}
+document.getElementById('visBtn').addEventListener('click', () => {
+  const p = packs[packIndex];
+  if (!p) return;
+  const secret = !packIsPrivate(p);
+  p.private = secret;
+  try { if (p.mirror) ShareCore.setPublic(p.mirror, !secret); } catch (err) { levelMsg.textContent = err.message; }
+  persist();
+  drawSharing();
+});
+document.getElementById('sharingBtn').addEventListener('click', () => {
+  try { ShareCore.setSharing(!ShareCore.sharingOn()); } catch (err) { levelMsg.textContent = err.message; }
+  drawSharing();
+});
+addEventListener('storage', e => { if (e.key === 'wtwSharing' || e.key === 'wtwPrivatePacks') drawSharing(); });
+
 // 🔗 Share: the level pack as it is now, from its copy in the pack store —
-// made at once rather than waited for — through share/, which shares it
-// straight away. The tab is opened on the click itself, so it isn't taken
-// for a pop-up, and pointed at share/ once the copy is made.
+// made at once rather than waited for — through share/, which gives its link.
+// The tab is opened on the click itself, so it isn't taken for a pop-up, and
+// pointed at share/ once the copy is made.
 document.getElementById('shareBtn').addEventListener('click', async () => {
   if (noPack) return;
   const tab = window.open('', 'wtw-share');
@@ -3002,7 +3040,7 @@ document.getElementById('shareBtn').addEventListener('click', async () => {
     await ask('Could not share', 'The level pack has to be kept in this browser to be shared, and it could not be: ' + why + '.', 'OK');
     return;
   }
-  const url = `/share/?pack=${encodeURIComponent('idb:' + p.mirror)}&go=1`;
+  const url = `/share/?pack=${encodeURIComponent('idb:' + p.mirror)}`;
   if (tab) { tab.location.href = url; tab.focus(); } else location.href = url;
 });
 

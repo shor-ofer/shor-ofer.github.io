@@ -8,31 +8,36 @@
 // .zip files, and, to share or fetch, PeerJS.
 //
 // What goes over the wire, in order:
-//   friend -> sharer  { t: 'ask', name, v }  the pack its link names, and the
-//                                            version of its own copy, if any
+//   friend -> sharer  { t: 'ask', p: 2, name, v }   the pack its link names, and
+//                                            the version of its own copy, if any
 //   sharer -> friend  { t: 'same', name, title, v, card }   that is this
 //                                                 version: nothing more is sent
 //                     or { t: 'pack', name, title, v, card, files: [{ path, size, hash }] }
-//                     or { t: 'none', name }  if this browser hasn't got it
-//   friend -> sharer  { t: 'want', paths }   the files whose hash no level
-//                                            pack in this browser has — all
-//                                            of them if it has none
-//   sharer -> friend  { t: 'file', path, data: ArrayBuffer }   one per file wanted,
-//   friend -> sharer  { t: 'got', path }                        each answered
+//                     or { t: 'none', name }  if this browser doesn't offer it
+//   friend -> sharer  { t: 'want', paths, at }   the files whose hash no level
+//                                            pack in this browser has — all of
+//                                            them if it has none; at: { path:
+//                                            bytes it has of one cut short }
+//   sharer -> friend  { t: 'file', path, at, size, data: ArrayBuffer }   a piece,
+//   friend -> sharer  { t: 'got', path, at }   every WINDOW pieces, and at a file's end
 //   sharer -> friend  { t: 'end' }
 // card is the pack's signed card (share/cards.js), or null where there can
 // be none (plain http). Instead of 'ask', a friend may only ask what the
 // newest version is:
 //   friend -> sharer  { t: 'latest', id }       a card's pack id
 //   sharer -> friend  { t: 'card', card }  or { t: 'none' }
-// A sharer answers only for packs marked shared in its browser (setShared):
-// any other name is 'none', as if it weren't there — one link handed on
-// mustn't reach every pack this browser keeps.
+// That is all a friend can say: nothing on this line writes or deletes. It
+// gets answers only for public packs (isPublic); any other name is 'none', as
+// if it weren't there.
 //
-// The friend's new copy is the files sent and, for the rest, the same bytes
-// from whichever pack here has them; files the pack no longer has go. One
-// file at a time, each waited for, so neither side holds the whole pack in
-// the channel's buffer and both can show how far it has got.
+// Files go in small pieces, each sent with room for the page to get on with
+// things, as a browser's data channel can't take a large message and copying
+// one holds up the page's thread — the game's, if it is the one playing. The
+// friend's new copy is the files sent and, for the rest, the same bytes from
+// whichever pack here has them; files the pack no longer has go. If the line
+// drops, the friend asks again (another page of that browser takes over
+// within moments) and fetches only what it still lacks. Everything is checked
+// against the version it asked for before any of it is kept.
 const ShareCore = (() => {
   const fmt = n => n < 1024 ? `${n} B` : n < 1048576 ? `${(n / 1024).toFixed(0)} KB` : `${(n / 1048576).toFixed(1)} MB`;
   const pageUrl = new URL('/share/', location.origin).href;
@@ -60,21 +65,70 @@ const ShareCore = (() => {
   };
   const readStored = async name => Promise.all((await packStore.files('levels', name)).map(async f => ({ path: f.name, data: await f.data.arrayBuffer() })));
 
-  // ---------- which packs are shared ----------
-  // The names of the packs this browser lets friends fetch, kept in its
-  // localStorage. A pack is shared on purpose — Share it, `share open`,
-  // `share pack` — never by a link alone.
-  const SHARED_KEY = 'wtwSharedPacks';
-  function sharedNames() {
-    try { return new Set(JSON.parse(localStorage.getItem(SHARED_KEY) || '[]')); } catch { return new Set(); }
+  // ---------- which packs are public, and whether this browser shares ----------
+  // A pack is public unless it is marked private, here in this browser's
+  // localStorage; the editor's passing copies (__) never are. Sharing as a
+  // whole is on unless switched off: both belong to the browser, not to a page.
+  const PRIVATE_KEY = 'wtwPrivatePacks', SHARING_KEY = 'wtwSharing', CHANNEL = 'wtw-share';
+  const keyOf = name => clean(String(name).replace(/^idb:/, ''));
+  function privateNames() {
+    try { return new Set(JSON.parse(localStorage.getItem(PRIVATE_KEY) || '[]')); } catch { return new Set(); }
   }
-  const isShared = name => sharedNames().has(clean(String(name).replace(/^idb:/, '')));
-  function setShared(name, on) {
-    const names = sharedNames(), key = clean(String(name).replace(/^idb:/, ''));
-    if (on) names.add(key); else names.delete(key);
-    try { localStorage.setItem(SHARED_KEY, JSON.stringify([...names].sort())); }
-    catch { throw error('store', "This browser won't keep which packs are shared (its storage is off)."); }
+  const isPublic = name => { const key = keyOf(name); return !key.startsWith('__') && !privateNames().has(key); };
+  function setPublic(name, on) {
+    const names = privateNames(), key = keyOf(name);
+    if (on) names.delete(key); else names.add(key);
+    try { localStorage.setItem(PRIVATE_KEY, JSON.stringify([...names].sort())); }
+    catch { throw error('store', "This browser won't keep which packs are private (its storage is off)."); }
     return on;
+  }
+  // Every pack public again.
+  function setAllPublic() {
+    try { localStorage.removeItem(PRIVATE_KEY); } catch { /* none kept, then */ }
+  }
+  const sharingOn = () => { try { return localStorage.getItem(SHARING_KEY) !== 'off'; } catch { return false; } };
+  function setSharing(on) {
+    try { localStorage.setItem(SHARING_KEY, on ? 'on' : 'off'); }
+    catch { throw error('store', "This browser won't keep that (its storage is off)."); }
+    const room = new BroadcastChannel(CHANNEL);
+    room.postMessage({ t: 'switch' });
+    room.close();
+    return on;
+  }
+
+  // How sharing stands, from the pages of this browser (src/js/sharehost.js):
+  //   { enabled, state, id, page, pages, served, trouble }
+  // state: 'off', 'sharing', 'connecting', or 'nopage' if no page answered.
+  // Asks again until one is sharing, or `wait` ms have gone.
+  function sharingStatus(wait = 2500) {
+    if (!sharingOn()) return Promise.resolve({ enabled: false, state: 'off', id: shareId(), page: '', pages: 0, served: 0, trouble: '' });
+    return new Promise(resolve => {
+      const room = new BroadcastChannel(CHANNEL), from = 'ask-' + Math.random().toString(36).slice(2);
+      const answers = new Map();
+      room.onmessage = e => { if (e.data && e.data.t === 'here' && e.data.to === from) answers.set(e.data.page + answers.size, e.data); };
+      const started = Date.now();
+      const round = () => {
+        answers.clear();
+        room.postMessage({ t: 'who', from });
+        setTimeout(() => {
+          const all = [...answers.values()];
+          const master = all.find(a => a.state === 'sharing') || all.find(a => a.state === 'connecting');
+          if (!(master && master.state === 'sharing') && Date.now() - started < wait) { round(); return; }
+          room.close();
+          resolve({ enabled: true, state: master ? master.state : 'nopage', id: shareId(), page: master ? master.page : '', pages: all.length,
+            served: master ? master.served : 0, trouble: master ? master.trouble : '' });
+        }, 250);
+      };
+      round();
+    });
+  }
+  // Calls fn with what happens in the room: { t: 'state', state, trouble, page },
+  // { t: 'friend', friend, title, text, state, progress }, { t: 'switch' }.
+  // Returns what stops it.
+  function watchSharing(fn) {
+    const room = new BroadcastChannel(CHANNEL);
+    room.onmessage = e => { if (e.data && ['state', 'friend', 'switch'].includes(e.data.t)) fn(e.data); };
+    return () => room.close();
   }
 
   // ---------- what this browser has ----------
@@ -89,7 +143,13 @@ const ShareCore = (() => {
       if (res.ok) for (const p of await res.json()) if (Array.isArray(p.files)) {
         out.push({ key: p.name, name: p.name, title: p.title || p.name, label: `${p.title || p.name} — levelpacks/${p.name}`, dir: p.dir,
           play: files => files.some(f => f.path === 'index.html') ? p.dir + 'index.html' : `/src/index.html?pack=${encodeURIComponent(p.dir + 'levelpack.json')}`,
-          version: async function () { return (await packStore.manifestOf(await this.load())).v; },
+          version: async function () { return (await this.manifest()).v; },
+          manifest: async function () { return packStore.manifestOf(await this.load()); },
+          read: async path => {
+            const r = await fetch(p.dir + path, { cache: 'no-store' });
+            if (!r.ok) throw new Error(`${p.dir}${path}: ${r.status}`);
+            return r.arrayBuffer();
+          },
           load: async () => Promise.all(p.files.map(async path => {
             const r = await fetch(p.dir + path, { cache: 'no-store' });
             if (!r.ok) throw new Error(`${p.dir}${path}: ${r.status}`);
@@ -104,6 +164,12 @@ const ShareCore = (() => {
           dir: packStore.url('levels', p.name),
           play: files => playUrl(p.name, files),
           version: async () => (await packStore.manifest('levels', p.name))?.v,
+          manifest: () => packStore.manifest('levels', p.name),
+          read: async path => {
+            const rec = await packStore.get('levels', p.name, path);
+            if (!rec) throw new Error(`${path} isn't in ${p.name}`);
+            return new Response(rec.data).arrayBuffer();
+          },
           load: () => readStored(p.name) });
       }
     } catch { /* no store */ }
@@ -145,7 +211,7 @@ const ShareCore = (() => {
       const e = typeof ShareCards !== 'undefined' && ShareCards.stored(p.name);
       const card = e && m && e.card.v === m.v ? e.card : null;
       out.push({ name: p.name, title: p.title || p.name, files: p.count, size: m ? m.files.reduce((n, f) => n + f.size, 0) : null,
-        v: m ? m.v : null, id: card ? card.id : null, seq: card ? card.seq : null, shared: isShared(p.name), updated: new Date(p.updated).toISOString(), url: packStore.url('levels', p.name) });
+        v: m ? m.v : null, id: card ? card.id : null, seq: card ? card.seq : null, public: isPublic(p.name), updated: new Date(p.updated).toISOString(), url: packStore.url('levels', p.name) });
     }
     return out;
   }
@@ -157,7 +223,7 @@ const ShareCore = (() => {
     // one kept here has its manifest saved with it; one on disk is read
     const m = src.key.startsWith('idb:') ? await packStore.manifest('levels', src.name) : await packStore.manifestOf(await src.load());
     return { name: src.name, title: src.title, key: src.key, where: src.key.startsWith('idb:') ? 'browser' : 'disk', url: src.dir,
-      shared: isShared(src.name), v: m.v, size: m.files.reduce((n, f) => n + f.size, 0), files: m.files };
+      public: isPublic(src.name), v: m.v, size: m.files.reduce((n, f) => n + f.size, 0), files: m.files };
   }
 
   // A pack — kept here or on disk — as a .zip of its files at their paths,
@@ -195,7 +261,7 @@ const ShareCore = (() => {
     const gone = [];
     for (const name of names) {
       await packStore.remove('levels', name);
-      try { setShared(name, false); } catch { /* not kept anyway */ }
+      try { setPublic(name, true); } catch { /* not kept anyway */ }
       try { if (typeof ShareCards !== 'undefined') ShareCards.forget(name); } catch { /* as above */ }
       gone.push(name);
     }
@@ -203,118 +269,141 @@ const ShareCore = (() => {
   }
 
   // ---------- sharing ----------
-  // Shares from this browser under its own id until close(): the pack named
-  // is read at once — what a friend asks for is that one, or any other here.
-  // `on` gets: ready({ id, link, name, title, v, files, size }),
-  // friend(n, { title, text, state, progress }) as each friend gets on,
-  // trouble(text, final).
-  async function share(name, on) {
-    const pack = await sourceNamed(name);
-    if (!pack) throw error('missing', `There is no level pack called ${name} here.`);
-    const files = await pack.load();
-    const manifest = await packStore.manifestOf(files);
-    const size = files.reduce((n, f) => n + f.data.byteLength, 0);
-    if (typeof Peer === 'undefined') throw error('nopeer', 'Could not load PeerJS from cdnjs — sharing needs the internet to find the other browser.');
-    const current = () => ({ pack, files, manifest });
-    let peer = null, tries = 0, closed = false, friends = 0;
-    const open = () => {
+  // The size of a file's pieces, in bytes, just under PeerJS's own (16300), so
+  // it has no whole file to pack and cut up; and how many go between answers.
+  const PIECE = 16000, WINDOW = 16;
+  const later = ms => new Promise(resolve => setTimeout(resolve, ms));
+  // Room for the page to do something else. Not a timer: a tab in the
+  // background runs those about once a second at best.
+  const breath = () => new Promise(resolve => {
+    const c = new MessageChannel();
+    c.port1.onmessage = () => { c.port1.close(); resolve(); };
+    c.port2.postMessage(0);
+  });
+
+  // The master's line to friends (src/js/sharehost.js holds one in one page
+  // of this browser), until close(): under this browser's id, answering each
+  // friend for this browser's public packs. It keeps trying — the id may be
+  // the last master's for a moment. `on` gets: ready(id), friend(n, { title,
+  // text, state, progress }), idle() when the last friend goes, trouble(text).
+  // pause() is how long to wait between a file's pieces just now, in ms.
+  function host(on, { pause = () => 0 } = {}) {
+    let peer = null, closed = false, friends = 0, again = 0, open = 0;
+    const retry = ms => { if (!closed && !again) again = setTimeout(() => { again = 0; start(); }, ms); };
+    const start = () => {
+      if (closed) return;
       peer = new Peer(shareId());
-      peer.on('open', id => on.ready({ id, link: linkFor(pack.name, manifest.v), name: pack.name, title: pack.title, key: pack.key, v: manifest.v, files: files.length, size }));
-      peer.on('connection', conn => { const n = ++friends; serve(conn, current, report => on.friend(n, report)); });
-      peer.on('disconnected', () => {
-        if (peer.destroyed || closed) return;
-        on.trouble('Lost the broker — reconnecting…', false);
-        peer.reconnect();
+      const mine = peer;
+      mine.on('open', id => on.ready(id));
+      mine.on('connection', conn => {
+        const n = ++friends;
+        open++;
+        let gone = false;
+        const left = () => { if (gone) return; gone = true; if (--open === 0 && on.idle) on.idle(); };
+        conn.on('close', left);
+        conn.on('error', left);
+        serve(conn, report => on.friend(n, report), pause);
       });
-      peer.on('error', err => {
-        if (err.type !== 'unavailable-id') { on.trouble('Connection trouble: ' + (err.type || err.message), false); return; }
-        // another page of this browser holds the id — it sends this pack
-        // too, so the link works meanwhile — or one closed only just now
-        peer.destroy();
-        if (closed) return;
-        if (++tries > 24) { on.trouble("This browser's line is still in use. Close its other share pages and reload this one.", true); return; }
-        on.trouble(`This browser's line is in use — by another share page open here (the link works through it), or one only just closed. Trying again… (${tries})`, false);
-        setTimeout(open, 5000);
+      mine.on('disconnected', () => {
+        if (closed || mine.destroyed) return;
+        on.trouble('Lost the broker — reconnecting…');
+        setTimeout(() => { if (!closed && !mine.destroyed && mine.disconnected) mine.reconnect(); }, 3000);
+      });
+      mine.on('close', () => retry(2000 + Math.random() * 1000));
+      mine.on('error', err => {
+        if (err.type === 'unavailable-id') { on.trouble("This browser's id is still taken — waiting for it…"); mine.destroy(); return; }
+        on.trouble('Connection trouble: ' + (err.type || err.message));
+        if (mine.destroyed) retry(10000);
       });
     };
-    open();
-    return { link: linkFor(pack.name, manifest.v), close() { closed = true; if (peer) peer.destroy(); } };
+    start();
+    return { busy: () => open > 0, close() { closed = true; clearTimeout(again); if (peer) peer.destroy(); } };
   }
 
-  // One friend: the pack it asks for — the one being shared, or any other this
-  // browser has — its manifest, then the files it wants, one by one. Reports
-  // { title, text, state: ''|'ok'|'err', progress: 0..1 } as it goes.
-  function serve(conn, current, report) {
-    let all = [], files = [], size = 0, wanted = false, title = '';
-    let i = 0, sent = 0, waiting = null, finished = false;
+  // One friend: the public pack it asks for, its manifest, then the files it
+  // wants, piece by piece. Reports { title, text, state: ''|'ok'|'err',
+  // progress: 0..1 } as it goes.
+  function serve(conn, report, pause = () => 0) {
+    let pack = null, list = [], title = '', wanted = false, finished = false, answered = null;
     const tell = (text, state = '', progress) => report({ title, text, state, progress });
     tell('connecting…');
-    const fail = text => { finished = true; tell(text, 'err'); };
-    const next = () => {
-      if (i >= files.length) {
-        finished = true;
-        conn.send({ t: 'end' });
-        tell(files.length === all.length ? `sent, ${fmt(size)}` : files.length ? `sent ${files.length} changed of ${all.length} files, ${fmt(size)}` : 'had it all already', 'ok', 1);
-        return;
-      }
-      const f = files[i++];
-      waiting = f.path;
-      conn.send({ t: 'file', path: f.path, data: f.data });
-      sent += f.data.byteLength;
-    };
+    const fail = text => { finished = true; tell(text, 'err'); if (answered) answered(); };
     const cardOf = name => typeof ShareCards !== 'undefined' ? ShareCards.cardOrNull(name) : null;
+
+    async function send(paths, at) {
+      const files = list.filter(f => paths.has(f.path));
+      const from = f => { const n = at && at[f.path]; return Number.isInteger(n) && n > 0 ? Math.min(n, f.size) : 0; };
+      const size = files.reduce((t, f) => t + f.size - from(f), 0);
+      let sent = 0;
+      for (const f of files) {
+        const bytes = new Uint8Array(await pack.read(f.path));
+        let i = from(f), since = 0;
+        do {
+          if (finished) return;
+          const piece = bytes.slice(i, i + PIECE);
+          conn.send({ t: 'file', path: f.path, at: i, size: bytes.length, data: piece.buffer });
+          i += piece.length;
+          sent += piece.length;
+          if (i >= bytes.length || ++since >= WINDOW) {
+            since = 0;
+            await new Promise(resolve => { answered = resolve; });
+            answered = null;
+            if (finished) return;
+            tell(`${fmt(sent)} of ${fmt(size)}`, '', sent / (size || 1));
+          } else await breath();
+          const ms = pause();
+          if (ms) await later(ms);
+        } while (i < bytes.length);
+      }
+      finished = true;
+      conn.send({ t: 'end' });
+      tell(files.length === list.length ? `sent, ${fmt(size)}` : files.length ? `sent ${files.length} changed of ${list.length} files, ${fmt(size)}` : 'had it all already', 'ok', 1);
+    }
+
     conn.on('data', async msg => {
       if (msg && msg.t === 'latest') {
-        // the newest card here of a pack id: a shared pack's only
+        // the newest card here of a pack id: a public pack's only
         const name = typeof ShareCards !== 'undefined' && ShareCards.nameOf(String(msg.id));
-        const card = name && isShared(name) ? await cardOf('idb:' + name) : null;
+        const card = name && isPublic(name) ? await cardOf('idb:' + name) : null;
         conn.send(card && card.id === msg.id ? { t: 'card', card } : { t: 'none' });
         finished = true;
-        tell(card ? `asked for the newest ${card.title}: version ${card.seq}` : `asked for the newest ${msg.id}, which isn't shared`, card ? 'ok' : 'err', 1);
+        tell(card ? `asked for the newest ${card.title}: version ${card.seq}` : `asked for the newest ${msg.id}, which isn't offered`, card ? 'ok' : 'err', 1);
         return;
       }
       if (msg && msg.t === 'ask') {
-        // only a pack this browser shares — any other as if it weren't here
-        if (!isShared(msg.name || '')) { conn.send({ t: 'none', name: msg.name }); fail(`asked for ${msg.name}, which isn't shared`); return; }
-        let { pack, files: had, manifest } = current();
-        // the pack being shared, unless it was saved again since it was read
-        const changed = pack.key.startsWith('idb:') && clean(msg.name) === clean(pack.name)
-          && (await packStore.manifest('levels', pack.name).catch(() => null))?.v !== manifest.v;
-        if (changed || clean(msg.name) !== clean(pack.name)) {
-          pack = await sourceNamed(msg.name);
-          if (!pack) { conn.send({ t: 'none', name: msg.name }); fail(`asked for ${msg.name}, which isn't here`); return; }
-          try { had = await pack.load(); }
-          catch (err) { conn.send({ t: 'none', name: msg.name }); fail('could not read it: ' + err.message); return; }
-          manifest = await packStore.manifestOf(had);
-        }
-        all = had;
-        title = pack.title;
+        const name = String(msg.name || '');
+        // a page from before files went in pieces wouldn't understand them
+        if (msg.p !== 2) { conn.send({ t: 'none', name }); fail('its page is out of date: it has to reload'); return; }
+        // only a public pack, any other as if it weren't here
+        const src = isPublic(name) ? await sourceNamed(name) : null;
+        if (!src) { conn.send({ t: 'none', name }); fail(`asked for ${name}, which isn't offered`); return; }
+        let manifest;
+        try { manifest = await src.manifest(); }
+        catch (err) { conn.send({ t: 'none', name }); fail('could not read it: ' + err.message); return; }
+        pack = src;
+        list = manifest.files;
+        title = src.title;
         if (msg.v && msg.v === manifest.v) {
-          conn.send({ t: 'same', name: pack.name, title: pack.title, v: manifest.v, card: await cardOf(pack.key) });
+          conn.send({ t: 'same', name: src.name, title: src.title, v: manifest.v, card: await cardOf(src.key) });
           finished = true;
           tell('had this version already', 'ok', 1);
           return;
         }
-        conn.send({ t: 'pack', name: pack.name, title: pack.title, v: manifest.v, card: await cardOf(pack.key), files: manifest.files });
+        conn.send({ t: 'pack', name: src.name, title: src.title, v: manifest.v, card: await cardOf(src.key), files: manifest.files });
         tell('reading its list of files…');
         return;
       }
-      if (msg && msg.t === 'want' && Array.isArray(msg.paths)) {
+      if (msg && msg.t === 'want' && Array.isArray(msg.paths) && pack) {
         wanted = true;
-        const paths = new Set(msg.paths);
-        files = all.filter(f => paths.has(f.path));
-        size = files.reduce((t, f) => t + f.data.byteLength, 0);
-        next();
+        send(new Set(msg.paths), msg.at).catch(err => fail('could not send it: ' + err.message));
         return;
       }
-      if (!msg || msg.t !== 'got' || msg.path !== waiting) return;
-      tell(`${fmt(sent)} of ${fmt(size)}`, '', sent / (size || 1));
-      next();
+      if (msg && msg.t === 'got' && answered) answered();
     });
     conn.on('close', () => {
       if (finished) return;
       // &diff: it read the list and fetched nothing
-      if (all.length && !wanted) { finished = true; tell('only looked at what it would fetch'); return; }
+      if (list.length && !wanted) { finished = true; tell('only looked at what it would fetch'); return; }
       fail('left before the end');
     });
     conn.on('error', err => fail('failed: ' + err.message));
@@ -366,74 +455,148 @@ const ShareCore = (() => {
     try { mine = name && (await packStore.manifest('levels', name))?.v; } catch { /* none kept */ }
     return new Promise((resolve, reject) => {
       const peer = new Peer();
-      let meta = null, got = 0, total = 0, done = false, kept = [];
-      const files = [];
-      const finish = (fn, value) => { if (done) return; done = true; try { peer.destroy(); } catch { /* gone */ } fn(value); };
+      // Tries left: a browser just changing master answers within moments, and
+      // one cut off mid-way is worth waiting for longer.
+      const TRIES_BEFORE = 1, TRIES_DURING = 10, GAP = 2500, SILENCE = 8000;
+      let meta = null, need = [], kept = [], got = 0, total = 0, done = false, ending = false;
+      let conn = null, tries = 0, silence = 0, since = 0;
+      const have = new Map();     // path -> { hash, data }: whole files here
+      let part = null;            // { path, hash, parts, at }: the file under way
+      const finish = (fn, value) => {
+        if (done) return;
+        done = true;
+        clearTimeout(silence);
+        try { peer.destroy(); } catch { /* gone */ }
+        fn(value);
+      };
       const fail = (code, message) => finish(reject, error(code, message));
       const stored = (here, title, extra) => ({ status: 'kept', name: here, title, key: 'idb:' + here, url: packStore.url('levels', here) + 'levelpack.json', ...extra });
-      peer.on('open', () => {
-        const conn = peer.connect(from, { reliable: true });
-        conn.on('open', () => {
+
+      // The line is gone or quiet: ask again, for what is still wanted.
+      const dropped = () => {
+        if (done || ending) return;
+        clearTimeout(silence);
+        const was = conn;
+        conn = null;
+        try { if (was) was.close(); } catch { /* gone */ }
+        if (++tries > (meta ? TRIES_DURING : TRIES_BEFORE)) {
+          if (meta) fail('closed', 'Your friend closed their browser before it was all here. Ask them to open any page of the game again.');
+          else fail('unavailable', "Your friend's browser isn't sharing right now — the link works whenever a page of the game is open there.");
+          return;
+        }
+        if (meta) progress({ text: 'The line dropped — asking again…' });
+        setTimeout(() => { if (!done && !conn && !peer.destroyed) connect(); }, GAP);
+      };
+      const heard = () => { clearTimeout(silence); silence = setTimeout(dropped, SILENCE); };
+
+      async function onPack(msg) {
+        meta = msg;
+        // every file this browser already holds, by hash, in any level pack
+        // here, its own older copy of this one looked in first
+        const own = clean(msg.name);
+        const held = await heldFiles(own);
+        const update = held.packs.includes(own);
+        need = msg.files.filter(f => !held.has(f.hash));
+        kept = msg.files.filter(f => held.has(f.hash)).map(f => ({ to: f.path, from: held.get(f.hash) }));
+        total = need.reduce((n, f) => n + f.size, 0);
+        const whole = msg.files.reduce((n, f) => n + f.size, 0);
+        if (diff) {
+          finish(resolve, { ...stored(own, msg.title), status: 'diff', v: msg.v, update, bytes: total, whole,
+            fetch: need.map(f => ({ path: f.path, size: f.size })),
+            here: kept.map(k => ({ path: k.to, pack: k.from.pack, as: k.from.path })) });
+          return;
+        }
+        // asked again after a drop: what came is good if it is still that file
+        for (const [path, h] of have) if (!need.some(f => f.path === path && f.hash === h.hash)) have.delete(path);
+        if (part && !need.some(f => f.path === part.path && f.hash === part.hash)) part = null;
+        const left = need.filter(f => !have.has(f.path));
+        got = [...have.values()].reduce((n, h) => n + h.data.length, 0) + (part ? part.at : 0);
+        since = 0;
+        progress({ title: msg.title, got, total,
+          note: !kept.length ? `A level pack, ${msg.files.length} files, ${fmt(whole)}.`
+            : `${update ? 'An update to the copy you have' : 'Some of it is here already'}: fetching ${need.length} of ${msg.files.length} files, ${fmt(total)} of ${fmt(whole)}.` });
+        conn.send({ t: 'want', paths: left.map(f => f.path), at: part ? { [part.path]: part.at } : {} });
+      }
+
+      function onPiece(msg) {
+        if (msg.at === undefined) { fail('old', "Your friend's page is out of date — ask them to reload it."); return; }
+        if (!part || part.path !== msg.path) {
+          const f = need.find(x => x.path === msg.path);
+          if (!f) return;
+          part = { path: msg.path, hash: f.hash, parts: [], at: 0 };
+        }
+        if (msg.at !== part.at) { dropped(); return; }    // out of step: ask again from here
+        const bytes = new Uint8Array(msg.data);
+        part.parts.push(bytes);
+        part.at += bytes.length;
+        got += bytes.length;
+        progress({ text: `${fmt(got)} of ${fmt(total)} — ${msg.path}`, got, total });
+        const whole = part.at >= msg.size;
+        if (whole || ++since >= WINDOW) {
+          since = 0;
+          conn.send({ t: 'got', path: msg.path, at: part.at });
+        }
+        if (!whole) return;
+        const data = new Uint8Array(part.at);
+        let i = 0;
+        for (const b of part.parts) { data.set(b, i); i += b.length; }
+        have.set(part.path, { hash: part.hash, data });
+        part = null;
+      }
+
+      async function onEnd() {
+        ending = true;
+        clearTimeout(silence);
+        const files = need.map(f => ({ name: f.path, data: have.get(f.path)?.data }));
+        if (files.some(f => !f.data)) { ending = false; dropped(); return; }
+        const fetched = files.length;
+        // the rest, from whichever pack here has the same bytes
+        for (const k of kept) {
+          const rec = await packStore.get('levels', k.from.pack, k.from.path).catch(() => null);
+          if (!rec) { fail('gone', `${k.to} was taken out of this browser meanwhile — open the link again.`); return; }
+          files.push({ name: k.to, data: rec.data });
+        }
+        progress({ text: 'Checking it…' });
+        // what came is the version asked for, or none of it is kept
+        if ((await packStore.manifestOf(files)).v !== meta.v) { fail('changed', "What came isn't the version your friend's browser named — nothing was kept."); return; }
+        progress({ text: 'Keeping it in this browser…' });
+        try { await packStore.put('levels', meta.name, files, meta.title); }
+        catch (err) { fail('store', 'Could not keep it: ' + err.message); return; }
+        const here = clean(meta.name);
+        // its card, if good and this version's, and that it came from `from`
+        if (meta.card && typeof ShareCards !== 'undefined') await ShareCards.arrived(here, meta.card, from, meta.v).catch(() => null);
+        finish(resolve, { ...stored(here, meta.title), v: meta.v, play: playUrl(here, files), fetched, fromHere: kept.length, bytes: total });
+      }
+
+      function connect() {
+        const line = peer.connect(from, { reliable: true });
+        conn = line;
+        heard();
+        line.on('open', () => {
+          if (line !== conn) return;
           progress({ text: diff ? 'Connected — reading the list of files…' : 'Connected — fetching…' });
-          conn.send({ t: 'ask', name, v: mine || '' });
+          line.send({ t: 'ask', p: 2, name, v: mine || '' });
         });
-        conn.on('data', async msg => {
-          if (!msg || done) return;
+        line.on('data', async msg => {
+          if (!msg || done || line !== conn) return;
+          heard();
           if (msg.t === 'none') fail('none', `Your friend's browser isn't sharing ${msg.name || 'that pack'}.`);
           else if (msg.t === 'same') {
             const here = clean(msg.name);
             if (msg.card && typeof ShareCards !== 'undefined') await ShareCards.arrived(here, msg.card, from, msg.v).catch(() => null);
             finish(resolve, { ...stored(here, msg.title), status: 'same', v: msg.v });
-          } else if (msg.t === 'pack') {
-            meta = msg;
-            // every file this browser already holds, by hash, in any level
-            // pack here — its own older copy of this one looked in first
-            const own = clean(msg.name);
-            const held = await heldFiles(own);
-            const update = held.packs.includes(own);
-            const need = msg.files.filter(f => !held.has(f.hash));
-            kept = msg.files.filter(f => held.has(f.hash)).map(f => ({ to: f.path, from: held.get(f.hash) }));
-            total = need.reduce((n, f) => n + f.size, 0);
-            const whole = msg.files.reduce((n, f) => n + f.size, 0);
-            if (diff) {
-              finish(resolve, { ...stored(own, msg.title), status: 'diff', v: msg.v, update, bytes: total, whole,
-                fetch: need.map(f => ({ path: f.path, size: f.size })),
-                here: kept.map(k => ({ path: k.to, pack: k.from.pack, as: k.from.path })) });
-              return;
-            }
-            progress({ title: msg.title, got: 0, total,
-              note: !kept.length ? `A level pack, ${msg.files.length} files, ${fmt(whole)}.`
-                : `${update ? 'An update to the copy you have' : 'Some of it is here already'}: fetching ${need.length} of ${msg.files.length} files, ${fmt(total)} of ${fmt(whole)}.` });
-            conn.send({ t: 'want', paths: need.map(f => f.path) });
-          } else if (msg.t === 'file') {
-            files.push({ name: msg.path, data: msg.data });
-            got += msg.data.byteLength;
-            progress({ text: `${fmt(got)} of ${fmt(total)} — ${msg.path}`, got, total });
-            conn.send({ t: 'got', path: msg.path });
-          } else if (msg.t === 'end') {
-            // the rest, from whichever pack here has the same bytes
-            const fetched = files.length;
-            for (const k of kept) {
-              const rec = await packStore.get('levels', k.from.pack, k.from.path).catch(() => null);
-              if (!rec) { fail('gone', `${k.to} was taken out of this browser meanwhile — open the link again.`); return; }
-              files.push({ name: k.to, data: rec.data });
-            }
-            progress({ text: 'Keeping it in this browser…' });
-            try { await packStore.put('levels', meta.name, files, meta.title); }
-            catch (err) { fail('store', 'Could not keep it: ' + err.message); return; }
-            const here = clean(meta.name);
-            // its card, if good and this version's, and that it came from `from`
-            if (meta.card && typeof ShareCards !== 'undefined') await ShareCards.arrived(here, meta.card, from, meta.v).catch(() => null);
-            finish(resolve, { ...stored(here, meta.title), v: meta.v, play: playUrl(here, files), fetched, fromHere: kept.length, bytes: total });
           }
+          else if (msg.t === 'pack') await onPack(msg);
+          else if (msg.t === 'file') onPiece(msg);
+          else if (msg.t === 'end') await onEnd();
         });
-        conn.on('close', () => fail('closed', 'Your friend closed their page before it was all here. Ask them to share it again.'));
-      });
-      peer.on('error', err => err.type === 'peer-unavailable'
-        ? fail('unavailable', "Your friend's share page isn't open right now — the link works whenever it is.")
-        : fail('peer', 'Connection trouble: ' + (err.type || err.message)));
+        line.on('close', () => { if (line === conn) dropped(); });
+      }
+
+      peer.on('open', connect);
+      peer.on('error', err => err.type === 'peer-unavailable' ? dropped() : fail('peer', 'Connection trouble: ' + (err.type || err.message)));
     });
   }
 
-  return { fmt, pageUrl, clean, shareId, linkFor, playUrl, sharedNames, isShared, setShared, sources, sourceNamed, haveHere, listPacks, packInfo, deletePacks, zipPack, readPackZip, share, heldFiles, fetchPack };
+  return { fmt, pageUrl, clean, shareId, linkFor, playUrl, CHANNEL, privateNames, isPublic, setPublic, setAllPublic, sharingOn, setSharing, sharingStatus, watchSharing, sources, sourceNamed, haveHere, listPacks, packInfo, deletePacks, zipPack, readPackZip, host, heldFiles, fetchPack };
 })();
