@@ -106,6 +106,7 @@
   .help small code { color: var(--muted); }
   body.json { display: block; padding: 12px; }
   body.json pre { margin: 0; font: 13px/1.5 var(--mono); white-space: pre-wrap; word-break: break-all; }
+  .hint { color: var(--muted); font-size: 13px; margin: 10px 0 4px; }
   [hidden] { display: none !important; }
 </style>
 </head>
@@ -130,9 +131,16 @@
     <div class="row"><span class="status" id="sharingStatus" style="flex:1;min-width:12ch"></span><button id="sharingBtn"></button></div>
     <label>Level pack <select id="packSel"></select></label>
     <div class="row"><button id="visBtn"></button><span class="status" id="sendStatus"></span></div>
-    <div id="linkBox" class="row" hidden>
-      <input id="linkOut" readonly aria-label="The link to send">
-      <button id="copyBtn">Copy</button>
+    <div id="linkBox" hidden>
+      <div class="row">
+        <input id="linkOut" readonly aria-label="The link to send">
+        <button id="copyBtn">Copy</button>
+      </div>
+      <p class="hint">Or, to have it start playing as soon as it is in their browser:</p>
+      <div class="row">
+        <input id="playLinkOut" readonly aria-label="The link that starts the game">
+        <button id="copyPlayBtn">Copy</button>
+      </div>
     </div>
     <div class="friends" id="friends"></div>
   </section>
@@ -286,7 +294,11 @@ async function sendMode(want) {
     $('#visBtn').textContent = open ? '🌐 Public — make it private' : '🔒 Private — make it public';
     say('#sendStatus', open ? '' : 'Friends asking for it get nothing, as if it were not here.');
     $('#linkBox').hidden = !open;
-    if (open) $('#linkOut').value = ShareCore.linkFor(pack.name, await pack.version());
+    if (open) {
+      const v = await pack.version();
+      $('#linkOut').value = ShareCore.linkFor(pack.name, v);
+      $('#playLinkOut').value = ShareCore.linkFor(pack.name, v, true);
+    }
   };
   $('#sharingBtn').onclick = () => {
     try { ShareCore.setSharing(!ShareCore.sharingOn()); } catch (err) { say('#sendStatus', err.message, 'err'); return; }
@@ -299,11 +311,13 @@ async function sendMode(want) {
     drawPack();
   };
   sel.onchange = drawPack;
-  $('#copyBtn').onclick = async () => {
-    try { await navigator.clipboard.writeText($('#linkOut').value); $('#copyBtn').textContent = 'Copied'; }
-    catch { $('#linkOut').select(); document.execCommand('copy'); $('#copyBtn').textContent = 'Copied'; }
-    setTimeout(() => $('#copyBtn').textContent = 'Copy', 1500);
+  const copier = (button, field) => $(button).onclick = async () => {
+    try { await navigator.clipboard.writeText($(field).value); $(button).textContent = 'Copied'; }
+    catch { $(field).select(); document.execCommand('copy'); $(button).textContent = 'Copied'; }
+    setTimeout(() => $(button).textContent = 'Copy', 1500);
   };
+  copier('#copyBtn', '#linkOut');
+  copier('#copyPlayBtn', '#playLinkOut');
   // what other pages of this browser do, and friends coming and going
   const rows = new Map();
   ShareCore.watchSharing(m => {
@@ -382,10 +396,17 @@ async function getMode() {
     });
   } catch (err) {
     say('#getStatus', err.message, 'err');
+    // nobody answers: with &play, a copy here of any version starts instead
+    if ((err.code === 'unavailable' || err.code === 'none') && 'play' in P && !diff) {
+      const src = await ShareCore.sourceNamed(P.get);
+      if (src && await startPlaying(src.key)) return;
+    }
     if (err.code === 'unavailable' || err.code === 'none') await offerOwn();
     return;
   }
   $('#getTitle').textContent = r.title;
+  // &play: the game, at once, at the pack's first level
+  if ('play' in P && !diff && await startPlaying(r.key)) return;
   if (r.status === 'own' || r.status === 'have') {
     $('#getView').hidden = true;
     await haveMode(await ShareCore.sourceNamed(r.key));
@@ -405,6 +426,16 @@ async function getMode() {
     $('#passBtn').onclick = () => { location.href = `${pageUrl}?pack=${encodeURIComponent(r.key)}`; };
     $('#playBtn').focus();
   }
+}
+
+// Into the game, at the first level of the pack kept here as `key`; false
+// if this address can't play packs kept in the browser.
+async function startPlaying(key) {
+  say('#getStatus', 'Starting the game…', 'ok');
+  $('#getBar').style.width = '100%';
+  if (key.startsWith('idb:') && !await packStore.ready()) { say('#getStatus', "It is saved, but this address can't play it — see the box at the top.", 'err'); return false; }
+  location.href = await ShareCore.startUrl(key);
+  return true;
 }
 
 // A copy of the pack already here, maybe older: to play meanwhile.

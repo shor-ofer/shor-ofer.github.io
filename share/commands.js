@@ -133,9 +133,9 @@ const ShareCommands = (() => {
     { name: 'link', value: 'name', about: 'the link a level pack here is shared by — sharing nothing yet',
       run: async p => {
         const info = await C.packInfo(needs(p.link, 'a level pack name'));
-        return { name: info.name, title: info.title, v: info.v, link: C.linkFor(info.name, info.v) };
+        return { name: info.name, title: info.title, v: info.v, link: C.linkFor(info.name, info.v), play: C.linkFor(info.name, info.v, true) };
       },
-      text: r => `${r.title} (version ${r.v})\n${r.link}` },
+      text: r => `${r.title} (version ${r.v})\n${r.link}\nto fetch it and start playing at once:\n${r.play}` },
     { name: 'download', value: 'name', about: 'a level pack — kept here or on disk — saved to this computer as a .zip',
       run: async (p, io) => {
         const z = await C.zipPack(needs(p.download, 'a level pack name'));
@@ -217,9 +217,12 @@ const ShareCommands = (() => {
           : `${r.title}: version ${r.seq} here is the newest found.`)
         + (r.tried.length ? '\n\n' + table(r.tried, [['ASKED', t => t.from], ['ANSWER', t => t.answer]]) : '\n(nowhere to ask: no author browser, none it came from, no web folder)') },
     // a friend's link (?from=<id>&get=<name>&v=<version>) is this command
-    { name: 'get', value: 'name', options: { from: 'id!', v: 'version', diff: '', check: '' },
-      about: "fetch a level pack from another browser — a friend's link; only the files not here, and nothing at all if this one has its version. -diff only lists them; -check asks even so",
-      run: (p, io) => C.fetchPack({ from: needs(p.from, '-from <id>'), name: needs(p.get, 'a level pack name'), v: p.v, diff: 'diff' in p, check: 'check' in p }, io.progress),
+    { name: 'get', value: 'name', options: { from: 'id!', v: 'version', diff: '', check: '', play: '' },
+      about: "fetch a level pack from another browser — a friend's link; only the files not here, and nothing at all if this one has its version. -diff only lists them; -check asks even so; -play (on the page) goes straight on into the game",
+      run: async (p, io) => {
+        const r = await C.fetchPack({ from: needs(p.from, '-from <id>'), name: needs(p.get, 'a level pack name'), v: p.v, diff: 'diff' in p, check: 'check' in p }, io.progress);
+        return 'play' in p && r.status !== 'diff' ? { ...r, start: new URL(await C.startUrl(r.key), location.origin).href } : r;
+      },
       text: r => ({
         own: () => `That is this browser's own link — ${r.title} is here.`,
         have: () => `${r.title} is here already at version ${r.v} — nothing asked of the other browser. (-check asks even so.)`,
@@ -228,7 +231,7 @@ const ShareCommands = (() => {
           + (r.fetch.length ? '\n\n' + table(r.fetch, [['FETCH', f => f.path], ['SIZE', f => fmt(f.size), true]]) : '')
           + (r.here.length ? '\n\n' + table(r.here, [['HERE', f => f.path], ['IN', f => f.pack === r.name && f.as === f.path ? '' : f.pack]]) : ''),
         kept: () => `${r.title}, version ${r.v}, is in this browser now: ${r.fetched} files fetched (${fmt(r.bytes)}), ${r.fromHere} from packs here.\nplay it: ${new URL(r.play, location.origin).href}`
-      }[r.status] || (() => plain(r)))() },
+      }[r.status] || (() => plain(r)))() + (r.start ? `\nstart it: ${r.start}` : '') },
     { name: 'pack', value: 'name',
       about: "a level pack here, to send to a friend: its link, and how sharing stands. If it is private, asks whether to make it public; it doesn't switch sharing on",
       run: async (p, io) => {
@@ -238,9 +241,9 @@ const ShareCommands = (() => {
           C.setPublic(src.name, true);
         }
         const v = await src.version();
-        return { name: src.name, title: src.title, public: true, v, link: C.linkFor(src.name, v), sharing: await C.sharingStatus() };
+        return { name: src.name, title: src.title, public: true, v, link: C.linkFor(src.name, v), play: C.linkFor(src.name, v, true), sharing: await C.sharingStatus() };
       },
-      text: r => !r.public ? `${r.title} stays private.` : `${r.title} (version ${r.v})\n${r.link}\n${statusText(r.sharing)}` }
+      text: r => !r.public ? `${r.title} stays private.` : `${r.title} (version ${r.v})\n${r.link}\nto fetch it and start playing at once:\n${r.play}\n${statusText(r.sharing)}` }
   ];
 
   // ---------- text ----------

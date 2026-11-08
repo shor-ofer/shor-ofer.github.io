@@ -43,6 +43,8 @@ input[type=color]{padding:2px;width:42px;height:30px}
 input[type=checkbox]{accent-color:var(--amber);width:auto}
 
 /* ---------- chrome ---------- */
+/* inside the level editor (?embed): its bar is the level editor's */
+body.embed>header.top{display:none}
 .top{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:12px;flex-wrap:wrap;
   padding:12px 16px;background:var(--bg);border-bottom:1px solid var(--line)}
 .logo{font-family:var(--mono);font-size:21px;font-weight:700;color:var(--amber);margin:0;line-height:1;letter-spacing:-.03em}

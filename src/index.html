@@ -128,6 +128,12 @@
   .overlay p {
     color: #e8dcf5; font-size: 13px; margin: 0;
   }
+  #downloadScreen { background: #140c1c; z-index: 5; }
+  #downloadScreen .downloadLead { letter-spacing: 4px; text-transform: uppercase; }
+  #downloadTitle { font-size: 32px; text-shadow: 0 0 16px rgba(255,211,90,0.7); }
+  #downloadBar { width: min(70%, 360px); height: 10px; border-radius: 5px; background: rgba(255,255,255,0.12); overflow: hidden; }
+  #downloadBar i { display: block; height: 100%; width: 0; background: #ffd35a; transition: width 0.2s; }
+  #downloadNote { min-height: 1.4em; }
   /* Opaque black curtain; its opacity is driven frame by frame from the game. */
   #transitionOverlay {
     position: absolute; inset: 0;
@@ -323,12 +329,16 @@
   .hidden { display: none !important; }
 </style>
 <!-- ?test=1 — the level editor's Test — plays its level straight away: the
-     start menu is never shown, not even while the game loads. -->
+     start menu is never shown, not even while the game loads. ?play — come
+     through a flag from another level pack, or a share link's &play — starts
+     at level one: the menu isn't shown while the game loads either, only
+     once she is out of the game again. -->
 <script>
   if (new URLSearchParams(location.search).get('test') === '1') document.documentElement.classList.add('test-run');
+  if (new URLSearchParams(location.search).has('play')) document.documentElement.classList.add('play-run');
 </script>
 <style>
-  .test-run #startScreen { display: none !important; }
+  .test-run #startScreen, .play-run #startScreen { display: none !important; }
 </style>
 </head>
 <body>
@@ -415,6 +425,14 @@
       <div id="hiscoreLineWin" class="hiscoreLine"></div>
     </div>
 
+    <!-- through a flag into a level pack in another player's browser -->
+    <div id="downloadScreen" class="overlay hidden">
+      <p class="downloadLead">Travelling to</p>
+      <h2 id="downloadTitle"></h2>
+      <div id="downloadBar"><i></i></div>
+      <p id="downloadNote"></p>
+      <button class="bigbtn secondary hidden" id="downloadBack">← Back to the level</button>
+    </div>
     <div id="transitionOverlay" class="hidden">
       <div id="transitionWelcome" class="hidden">
         <div id="transitionWelcomeLine">Welcome to</div>

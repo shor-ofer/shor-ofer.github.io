@@ -55,7 +55,9 @@ const ShareCore = (() => {
     }
     return id;
   }
-  const linkFor = (name, v) => `${pageUrl}?from=${encodeURIComponent(shareId())}&get=${encodeURIComponent(clean(name))}&v=${v}`;
+  // The link a pack here is fetched by; with `play`, the friend's browser
+  // goes straight on into the game once it has it.
+  const linkFor = (name, v, play) => `${pageUrl}?from=${encodeURIComponent(shareId())}&get=${encodeURIComponent(clean(name))}&v=${v}${play ? '&play' : ''}`;
 
   // Where a stored pack is played: its own index.html, the whole game, or the
   // engine's page on it if it came without one.
@@ -129,6 +131,20 @@ const ShareCore = (() => {
     const room = new BroadcastChannel(CHANNEL);
     room.onmessage = e => { if (e.data && ['state', 'friend', 'switch'].includes(e.data.t)) fn(e.data); };
     return () => room.close();
+  }
+
+  // Where a pack here starts playing at its first level, its menu skipped
+  // (?play=1): its own page — unless that page is from before ?play, when it
+  // would open at its menu, and this engine plays the pack instead.
+  async function startUrl(key) {
+    const src = await sourceNamed(key);
+    if (!src) throw error('missing', `There is no level pack called ${key} here.`);
+    const files = (await src.manifest()).files;
+    let page = src.play(files);
+    if (/\/index\.html$/.test(page) && !new TextDecoder().decode(await src.read('index.html')).includes('wtw:play')) {
+      page = `/src/index.html?pack=${encodeURIComponent(page.replace(/index\.html$/, 'levelpack.json'))}`;
+    }
+    return page + (page.includes('?') ? '&' : '?') + 'play=1';
   }
 
   // ---------- what this browser has ----------
@@ -598,5 +614,5 @@ const ShareCore = (() => {
     });
   }
 
-  return { fmt, pageUrl, clean, shareId, linkFor, playUrl, CHANNEL, privateNames, isPublic, setPublic, setAllPublic, sharingOn, setSharing, sharingStatus, watchSharing, sources, sourceNamed, haveHere, listPacks, packInfo, deletePacks, zipPack, readPackZip, host, heldFiles, fetchPack };
+  return { fmt, pageUrl, clean, shareId, linkFor, playUrl, startUrl, CHANNEL, privateNames, isPublic, setPublic, setAllPublic, sharingOn, setSharing, sharingStatus, watchSharing, sources, sourceNamed, haveHere, listPacks, packInfo, deletePacks, zipPack, readPackZip, host, heldFiles, fetchPack };
 })();

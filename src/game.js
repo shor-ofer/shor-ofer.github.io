@@ -1185,6 +1185,11 @@ function drawDarkness() {
 // insides. A flag with no exit behind it ends the run, so a pack needs no end
 // marker.
 //
+// An exit may also be a share link (…/share/?from=<id>&get=<name>&v=…): a
+// level pack kept in another player's browser. The flag stays shut until
+// that pack can be had, here already or from a browser that answers; going
+// through fetches it into this browser and plays it from its first level.
+//
 // An exit written { "to": ..., "return": true } is a round trip: diving into
 // that flag remembers this level, exactly as it stands, and the first flag
 // over there with no exit behind it comes back out of this very flag. That is
@@ -1268,9 +1273,12 @@ async function loadBuiltinLevels() {
 
     const exits = [];
     const returns = [];
+    const links = [];              // by flag: a pack in another browser, instead
     for (const entry of (Array.isArray(data.exit) ? data.exit : [])) {
       const path = typeof entry === 'string' ? entry : entry && entry.to;
       if (!path) throw new Error(`${url.pathname}: exit ${exits.length} names no level`);
+      const link = shareLinkOf(path);
+      if (link) { links[exits.length] = link; exits.push(null); returns.push(false); continue; }
       exits.push(await exitTarget(path, url, pack));
       returns.push(typeof entry === 'object' && !!entry.return);
     }
@@ -1297,12 +1305,13 @@ async function loadBuiltinLevels() {
       soundsUrl: data.sounds ? new URL(data.sounds, url) : pack.soundsUrl,
       sounds: null,
       exits: [],
-      returns
+      returns,
+      links
     });
-    queue.push(...exits);
+    queue.push(...exits.filter(Boolean));
   }
 
-  for (const [i, exits] of unresolved) levels[i].exits = exits.map(t => indexByUrl.get(t.url.href));
+  for (const [i, exits] of unresolved) levels[i].exits = exits.map(t => t ? indexByUrl.get(t.url.href) : undefined);
   if (levels.length === 0) throw new Error('no levels in pack');
   BUILTIN_LEVELS = levels;
   await loadLevelResources(levels[0]);
@@ -1454,8 +1463,18 @@ function checkFinish() {
   // and the transition that follows both freeze update(), so it can't re-fire
 
   const level = campaignActive ? BUILTIN_LEVELS[currentLevelIndex] : null;
+  // a way into another browser's pack that can't be had just now stays shut
+  const link = level && level.links && level.links[flag.id];
+  if (link && linkState(link).state !== 'open') {
+    flagBlocked = flag;
+    const s = linkState(link);
+    showSignMessage(s.state === 'checking' ? 'Looking for the way through…'
+      : `This way leads to ${s.title || link.name}, in another player's browser — it can't be reached right now.`);
+    checkLink(link);
+    return;
+  }
   // a round trip isn't finishing the level — she is coming back to it
-  const roundTrip = !!(level && level.returns[flag.id]);
+  const roundTrip = !!(level && level.returns && level.returns[flag.id]);
 
   if (campaignActive && !roundTrip) {
     const stars = computeStarsForCurrentLevel();
@@ -1466,6 +1485,8 @@ function checkFinish() {
     if (currentLevelIndex === 0) unlockAchievement('firstSteps');
     if (!levelDeathOccurred) unlockAchievement('untouchable');
   }
+
+  if (link) { triggerExitDive(flag, () => enterSharedPack(link)); return; }
 
   // which flag she touched picks the exit; with no exit behind it she goes
   // back wherever she came in from, or the run ends if she came from nowhere
@@ -1492,6 +1513,135 @@ function checkFinish() {
     resetPosition();
   }, loading));
 }
+
+// ---------- Ways into other browsers' level packs ----------
+// A share link as a flag's exit: { href, from, name, v }, or null for any
+// other exit.
+function shareLinkOf(text) {
+  if (typeof text !== 'string' || !/^https?:\/\//.test(text)) return null;
+  let u;
+  try { u = new URL(text); } catch (e) { return null; }
+  const from = u.searchParams.get('from'), name = u.searchParams.get('get');
+  if (!from || !name) return null;
+  return { href: u.href, from, name, v: u.searchParams.get('v') || '' };
+}
+
+// What is known of each: state 'checking', 'open' (here already, or a
+// browser answers for it) or 'closed'; its title once heard; whether a copy
+// is here. Looked for in the background: playing never waits on it.
+const linkStates = new Map();
+const LINK_RECHECK_MS = 20000;
+function linkState(link) {
+  if (!linkStates.has(link.href)) { linkStates.set(link.href, { state: 'checking', title: '', here: false, busy: false, at: 0 }); checkLink(link); }
+  return linkStates.get(link.href);
+}
+// what a flag shows: '' open (or no link behind it), 'checking' or 'closed'
+function flagShut(flag) {
+  const level = campaignActive ? BUILTIN_LEVELS[currentLevelIndex] : null;
+  const link = level && level.links && level.links[flag.id];
+  if (!link) return '';
+  const s = linkState(link);
+  return s.state === 'open' ? '' : s.state;
+}
+
+async function checkLink(link) {
+  const s = linkState(link);
+  if (s.busy) return;
+  s.busy = true;
+  s.at = Date.now();
+  try {
+    const C = window.wtwShare ? await window.wtwShare.code() : null;
+    if (!C) { s.state = 'closed'; return; }
+    const name = C.clean(link.name);
+    const kept = (await C.listPacks()).find(p => p.name === name);
+    s.here = !!kept;
+    if (kept) s.title = kept.title;
+    // its very version here: nothing to ask anybody
+    if (kept && link.v && kept.v === link.v) { s.state = 'open'; return; }
+    if (link.from === C.shareId()) { s.state = kept ? 'open' : 'closed'; return; }
+    try {
+      const r = await C.fetchPack({ from: link.from, name, v: link.v, diff: true });
+      s.title = r.title || s.title;
+      s.state = 'open';
+    } catch (e) {
+      // nobody answers: a copy here, of any version, still does
+      s.state = kept ? 'open' : 'closed';
+    }
+  } catch (e) {
+    s.state = 'closed';
+  } finally {
+    s.busy = false;
+  }
+}
+
+// Every way out of this level that is still shut is looked for again now
+// and then, while she plays.
+setInterval(() => {
+  if (gameState !== 'playing' || !campaignActive) return;
+  const level = BUILTIN_LEVELS[currentLevelIndex];
+  for (const link of (level && level.links) || []) {
+    if (!link) continue;
+    const s = linkState(link);
+    if (s.state !== 'open' && Date.now() - s.at >= LINK_RECHECK_MS) checkLink(link);
+  }
+}, 5000);
+
+// Through the flag: the pack comes into this browser (only what isn't here
+// already), with its name and a bar on the screen, then its own page takes
+// over and starts at its first level.
+const downloadScreen = document.getElementById('downloadScreen');
+const downloadTitle = document.getElementById('downloadTitle');
+const downloadNote = document.getElementById('downloadNote');
+const downloadBar = document.getElementById('downloadBar').firstElementChild;
+const downloadBack = document.getElementById('downloadBack');
+async function enterSharedPack(link) {
+  const s = linkState(link);
+  gameState = 'download';
+  downloadTitle.textContent = s.title || link.name;
+  downloadNote.textContent = 'Finding the way…';
+  downloadBar.style.width = '0%';
+  downloadBack.classList.add('hidden');
+  downloadScreen.classList.remove('hidden');
+  try {
+    const C = await window.wtwShare.code();
+    const name = C.clean(link.name);
+    let key = 'idb:' + name;
+    try {
+      const r = await C.fetchPack({ from: link.from, name, v: link.v }, d => {
+        if (d.title) downloadTitle.textContent = d.title;
+        if (d.note) downloadNote.textContent = d.note;
+        else if (d.text) downloadNote.textContent = d.text;
+        if (d.total) downloadBar.style.width = `${(100 * d.got / d.total).toFixed(1)}%`;
+      });
+      key = r.key;
+    } catch (err) {
+      // nobody answers now: a copy here, of any version, will do
+      if (!s.here) throw err;
+      downloadNote.textContent = "Its browser isn't answering — playing the copy you have.";
+    }
+    downloadBar.style.width = '100%';
+    downloadNote.textContent = 'Starting it…';
+    // its own page (or this engine, for a page from before ?play)
+    const page = await C.startUrl(key);
+    // a pack kept in the browser is served by its service worker
+    if (page.startsWith(packStore.PREFIX) || page.includes(encodeURIComponent(packStore.PREFIX))) {
+      packStore.boot();
+      if (!await packStore.ready()) throw new Error('this browser will not keep games here');
+    }
+    location.href = page;
+  } catch (err) {
+    s.state = s.here ? 'open' : 'closed';
+    downloadNote.textContent = 'Could not get it: ' + err.message;
+    downloadBack.classList.remove('hidden');
+    downloadBack.focus();
+  }
+}
+// back to the level she dived out of, at her last checkpoint
+downloadBack.addEventListener('click', () => {
+  downloadScreen.classList.add('hidden');
+  resetPosition();
+  gameState = 'playing';
+});
 
 function showWinScreen() {
   gameState = 'win';
@@ -2493,6 +2643,7 @@ const optionsScreen = document.getElementById('optionsScreen');
 const achievementsScreen = document.getElementById('achievementsScreen');
 
 function goToScreen(screen) {
+  document.documentElement.classList.remove('play-run');   // a menu shown on purpose: the menu again
   [startScreen2, hiscoreScreen, customLevelScreen, optionsScreen, achievementsScreen].forEach(s => s.classList.add('hidden'));
   screen.classList.remove('hidden');
 }
@@ -2538,8 +2689,22 @@ Promise.all([atlas.loadRoot(), sound.loadRoot()]).then(loadBuiltinLevels).then((
   playBtn.disabled = false;
   playBtn.textContent = '▶ Play';
   refreshStarsSummary();
+  // every way into another browser's pack, looked for while the menu is up
+  for (const level of BUILTIN_LEVELS) for (const link of level.links || []) if (link) linkState(link);
+  // come through a flag from another pack (?play): straight into level one.
+  // (wtw:play — the mark a pack's page is looked for by, to know it can.)
+  // Sound waits for her first key or touch, as browsers want.
+  if (new URLSearchParams(location.search).has('play')) {
+    const wake = () => { sound.resume(); removeEventListener('keydown', wake); removeEventListener('pointerdown', wake); };
+    addEventListener('keydown', wake);
+    addEventListener('pointerdown', wake);
+    sound.resume();
+    sound.startMusic();
+    startCampaign();
+  }
 }).catch(err => {
   console.error('game data load failed:', err);
+  document.documentElement.classList.remove('play-run');
   playBtn.textContent = '⚠ Game data unavailable';
   levelLoadMsg.textContent = location.protocol === 'file:'
     ? 'Objects and levels load from the assets folder, which browsers block over file://. Serve this folder over http — e.g. "python -m http.server" — and open it from there.'

@@ -451,6 +451,7 @@ function migrateSplit(p) {
 // then fail to read it back as a Uint8Array at all. Blob URLs are runtime
 // only, so nothing here holds one.
 let saveTimer = 0;
+let editCount = 0;      // changes made here, for the level editor's Edit levels
 let saving = null;
 let saveAgain = false;
 
@@ -477,6 +478,7 @@ function savePack() {
   clearTimeout(warnTimer);
   warnTimer = setTimeout(refreshTabWarnings, 150);
   if (storageLocked) return;
+  editCount++;
   if (!pack.dirty) { pack.dirty = true; renderPackPicker(); }
   clearTimeout(saveTimer);
   saveTimer = setTimeout(writePack, 400);

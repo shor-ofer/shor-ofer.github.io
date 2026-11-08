@@ -54,7 +54,7 @@ function editIndex(s, change) {
 
 // The pack, and its line in the index, in one go.
 async function dbSave(p) {
-  const line = { id: p.id, name: p.name, dirty: !!p.dirty, origin: p.origin || '', updated: Date.now() };
+  const line = { id: p.id, name: p.name, dirty: !!p.dirty, origin: p.origin || '', owner: p.owner || '', updated: Date.now() };
   return dbTx('readwrite', s => {
     s.put(p, packKey(p.id));
     editIndex(s, list => [...list.filter(x => x.id !== p.id), line]);

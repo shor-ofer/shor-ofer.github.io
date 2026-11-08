@@ -5,6 +5,24 @@
 // takes in the game, the level editor and the asset pack creator alike.
 importScripts('src/js/packstore.js');
 
+// For a pack's page from before ?play hid its start menu: with ?play the menu
+// is hidden from the first paint, and shown again only once the game has
+// hidden it itself (she is in the level) — after that it is the menu again.
+const PLAY_RUN = `<script>
+if (new URLSearchParams(location.search).has('play')) {
+  document.documentElement.classList.add('play-run');
+  addEventListener('DOMContentLoaded', () => {
+    const s = document.getElementById('startScreen');
+    if (!s) { document.documentElement.classList.remove('play-run'); return; }
+    new MutationObserver((m, o) => {
+      if (s.classList.contains('hidden')) { document.documentElement.classList.remove('play-run'); o.disconnect(); }
+    }).observe(s, { attributes: true, attributeFilter: ['class'] });
+  });
+}
+</script>
+<style>.play-run #startScreen { display: none !important; }</style>
+`;
+
 self.addEventListener('install', () => self.skipWaiting());
 self.addEventListener('activate', e => e.waitUntil(self.clients.claim()));
 
@@ -21,8 +39,14 @@ self.addEventListener('fetch', e => {
       // a pack's page built before the game joined this browser's room
       // (src/js/sharehost.js) joins it all the same
       if (want.kind === 'levels' && String(rec.type).startsWith('text/html')) {
-        const page = await new Response(rec.data).text();
-        return new Response(page.includes('wtwShareHost') ? page : page + '\n<script src="/src/js/sharehost.js"></script>\n', { status: 200, headers });
+        let page = await new Response(rec.data).text();
+        if (!page.includes('wtwShareHost')) page += '\n<script src="/src/js/sharehost.js"></script>\n';
+        // ... and one built before ?play hid the start menu while it loads
+        // (come through a flag from another pack) hides it too, until the
+        // game hides it itself
+        // (only one that can start at level one — wtw:play — or there'd be no menu at all)
+        if (page.includes('wtw:play') && !page.includes('play-run') && page.includes('<head>')) page = page.replace('<head>', '<head>\n' + PLAY_RUN);
+        return new Response(page, { status: 200, headers });
       }
       return new Response(rec.data, { status: 200, headers });
     } catch (err) {

@@ -232,10 +232,12 @@ async function openInLevelEditor() {
       throw new Error('the pack store needs the page served from localhost or https, where its service worker can run');
     }
     const files = await buildPackFiles();
-    const base = await packStore.put('assets', slug(pack.name), files, pack.name);
-    const url = `/editor/index.html?assets=${encodeURIComponent(base)}`;
+    // a level pack's own art is kept as that pack's (lp-<its uid>), and the
+    // editor opens on that level pack (?for=)
+    const base = await packStore.put('assets', pack.owner ? 'lp-' + pack.owner : slug(pack.name), files, pack.name);
+    const url = `/editor/index.html?assets=${encodeURIComponent(base)}${pack.owner ? '&for=' + encodeURIComponent(pack.owner) : '&new'}`;
     if (tab) { tab.location.href = url; tab.focus(); } else window.open(url, 'wtw-level-editor');
-    toast(`Saved in this browser as ${base} and opened in the level editor`);
+    toast(pack.owner ? `Back in the level editor, with ${pack.name}'s new art` : `Saved in this browser as ${base} and opened in the level editor`);
   } catch (err) {
     if (tab) tab.close();
     toast('Could not open it in the level editor: ' + err.message, true);

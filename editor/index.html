@@ -48,6 +48,10 @@
   .tab.on { color: var(--amber); border-bottom-color: var(--amber); background: transparent; }
   #panel .group[data-tab]:not(.tabOn) { display: none; }
 
+  /* Edit assets: the Asset Editor in place of the levels */
+  #assetFrame { flex: 1; min-height: 0; width: 100%; border: 0; background: var(--bg); }
+  body.assets-mode #tabs, body.assets-mode #app, body.assets-mode .nopackBox { display: none !important; }
+
   /* with none, a word where the editor would be */
   .nopackBox { display: none; flex: 1; align-items: center; justify-content: center; flex-direction: column;
     gap: 6px; color: var(--muted); text-align: center; }
@@ -217,6 +221,7 @@
   .top #packPick b { font-weight: 400; max-width: 28ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .top #packPick .caret { color: var(--muted); font-size: 10px; }
   .top #packPick:hover { border-color: var(--amber); }
+  .packlistHead { padding: 6px 10px 2px; font-size: 11px; color: var(--muted); border-top: 1px solid var(--line, #3a3150); margin-top: 4px; }
   .packrename input[type=text] { width: 22ch; }
   .packlist { position: absolute; z-index: 30; left: 0; top: calc(100% + 4px); min-width: 280px; max-width: 380px; max-height: 320px;
     overflow: auto; display: grid; gap: 1px; padding: 4px; border: 1px solid var(--line2); border-radius: 8px;
@@ -229,23 +234,26 @@
   .top .packlist button.new { color: var(--amber); }
   .packlist span { flex: 1; min-width: 0; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .packlist small { color: var(--muted); font-size: 11.5px; }
-  .top #assetBtn { cursor: pointer; color: var(--fg); }
-  .top #assetBtn b { font-weight: 400; }
-  .top #assetBtn:hover { border-color: var(--amber); }
 
   /* ---- confirm panel ---- */
-  #askOverlay {
+  #askOverlay, #shareOverlay {
     position: fixed; inset: 0; z-index: 20; display: flex;
     align-items: center; justify-content: center;
     background: rgba(13, 10, 22, 0.72);
   }
-  #askCard {
+  #askCard, #shareCard {
     width: 348px; max-width: calc(100% - 32px);
     padding: 16px 18px; background: var(--panel);
     border: 1px solid var(--line2); border-radius: 10px;
     box-shadow: 0 18px 40px rgba(0, 0, 0, 0.55);
   }
-  #askCard > label {
+  #shareCard { width: 460px; }
+  #shareCard .row { display: flex; gap: 8px; }
+  #shareLink { flex: 1; min-width: 0; font-family: var(--mono); font-size: 12px; }
+  #shareCopy { width: auto; }
+  #shareNote { font-size: 12.5px; line-height: 1.5; color: var(--pink); margin-top: 8px; }
+  #shareNote:empty { display: none; }
+  #askCard > label, #shareCard > label {
     display: block; font-size: 11px; letter-spacing: .06em;
     text-transform: uppercase; color: var(--amber); margin-bottom: 8px;
   }
@@ -281,15 +289,14 @@
      clicks the select again and shuts the list it just opened. -->
 <header class="top">
   <h1 class="logo">Level<span>Editor</span></h1>
-  <div class="packwrap"><button type="button" class="namebox" id="packPick" aria-haspopup="listbox" title="The level packs in this browser — open one, make a new one, or duplicate this one; * changed since it was last exported. Every one is kept here as you work, where the game and the asset pack creator can open it too. Double-click to rename this one"><span>level pack</span><b id="packPickName"></b><span class="caret">▾</span></button><label class="namebox packrename" hidden><span>level pack</span><input type="text" id="packNameInput" placeholder="Level pack name" maxlength="40" aria-label="Rename the level pack"></label></div>
-  <button class="namebox packOnly" id="assetBtn" title="The asset pack this level pack is built with: its tiles, objects, backgrounds and sounds — click to pick another"><span>asset pack</span><b id="assetName"></b></button>
-  <button id="editAssetsBtn" class="packOnly" title="Open this asset pack in the asset pack creator, to change its tiles, sprites, objects and sounds">Edit ↗</button>
+  <div class="packwrap"><button type="button" class="namebox" id="packPick" aria-haspopup="listbox" title="The level packs in this browser — open one, make a new one, or duplicate this one; * changed since it was last exported. Every one is kept here as you work, where the game and the Asset Editor can open it too. Double-click to rename this one"><span>level pack</span><b id="packPickName"></b><span class="caret">▾</span></button><label class="namebox packrename" hidden><span>level pack</span><input type="text" id="packNameInput" placeholder="Level pack name" maxlength="40" aria-label="Rename the level pack"></label></div>
+  <button id="editAssetsBtn" class="packOnly">🎨 Edit assets</button>
   <span class="grow"></span>
   <button id="importBtn" title="Add a level pack: one in levelpacks/index.json, or a .zip">Import…</button>
   <button id="shareBtn" class="packOnly" title="Share the open level pack with a friend, peer to peer: a link they open to fetch it into their browser and play it">🔗 Share</button>
   <button id="visBtn" class="packOnly"></button>
   <button id="sharingBtn"></button>
-  <button id="downloadBtn" class="go packOnly" title="Save the open level pack, with its asset pack, as a .zip — clears its *">⬇ Export .zip</button>
+  <button id="downloadBtn" class="go packOnly" title="Save the open level pack, with its art, as a .zip — clears its *">⬇ Export .zip</button>
   <button id="revertBtn" class="packOnly" title="Put the open level pack back as it was when it was last exported or imported" disabled>⟲ Revert</button>
   <button id="delPackBtn" class="packOnly">Remove</button>
 </header>
@@ -301,6 +308,10 @@
   <button class="tab" data-tab="background">Background</button>
   <button class="tab" data-tab="sound">Sound</button>
 </nav>
+
+<!-- Edit assets: the Asset Editor, here in place of the levels, on the open
+     level pack's own art; the bar above stays as it is -->
+<iframe id="assetFrame" title="Asset Editor" hidden></iframe>
 
 <section class="nopackBox">
   <h2>No level packs in this browser</h2>
@@ -434,6 +445,21 @@
   </form>
 </div>
 
+<!-- 🔗 Share: the open level pack's link, and nothing else -->
+<div id="shareOverlay" class="hidden">
+  <div id="shareCard" class="askCard">
+    <label id="shareTitle">Share</label>
+    <div class="row">
+      <input id="shareLink" readonly aria-label="The share link">
+      <button id="shareCopy" class="go">Copy</button>
+    </div>
+    <div id="shareNote"></div>
+    <div class="row" style="margin-top:14px">
+      <button id="shareClose" class="wide">Close</button>
+    </div>
+  </div>
+</div>
+
 <div id="askOverlay" class="hidden">
   <div id="askCard">
     <label id="askTitle"></label>
@@ -513,6 +539,10 @@ function withCtx(target, fn) {
 // the open one's, or on ?assets= — which then becomes that level pack's.
 const DEFAULT_ASSETS = '/assetpacks/old/garden/';
 const ASKED_ASSETS = new URLSearchParams(location.search).get('assets');
+// ?for=<a level pack's uid>: the asset pack creator, back with that pack's art;
+// ?new: its Open in level editor, on an asset pack no level pack owns
+const FOR_PACK = new URLSearchParams(location.search).get('for');
+const NEW_PACK = new URLSearchParams(location.search).has('new');
 const EDITOR_DIR = (() => {
   let want = ASKED_ASSETS;
   if (!want) {
@@ -684,8 +714,43 @@ let messages = [];
 
 // Where each flag leads, by the same digit: an index into the pack, or null
 // for a flag that ends the run. The game reads a level's `exit` list the same
-// way, so 0F0 takes the first entry and 1F0 the second.
+// way, so 0F0 takes the first entry and 1F0 the second. A flag may lead
+// instead into a level pack in another player's browser: its entry is then
+// that pack's share link, a string ('' until one is pasted in).
 let exits = [];
+const isShareLink = t => typeof t === 'string';
+// A share link's parts, as the game reads them, or null if it is none.
+function shareLinkParts(text) {
+  if (typeof text !== 'string' || !/^https?:\/\//.test(text)) return null;
+  let u;
+  try { u = new URL(text); } catch { return null; }
+  const from = u.searchParams.get('from'), name = u.searchParams.get('get');
+  return from && name ? { href: u.href, from, name, v: u.searchParams.get('v') || '' } : null;
+}
+// The other level packs kept in this browser, which a flag can lead into by
+// this browser's share link for them: [{ name, title, v, public }]. Read in
+// the background; the flag's choices are drawn again when they change.
+let browserPacks = [];
+let browserPacksAt = 0;
+async function refreshBrowserPacks() {
+  if (Date.now() - browserPacksAt < 3000) return;
+  browserPacksAt = Date.now();
+  let list = [];
+  try { list = await ShareCore.listPacks(); } catch { return; }
+  const own = packs[packIndex] && packs[packIndex].mirror;
+  const next = list.filter(p => p.name !== own).map(p => ({ name: p.name, title: p.title, v: p.v, public: p.public }))
+    .sort((a, b) => a.title.localeCompare(b.title));
+  if (JSON.stringify(next) === JSON.stringify(browserPacks)) return;
+  browserPacks = next;
+  if (mode === 'object' && OBJECTS[objIndex] && OBJECTS[objIndex].glyph === 'F') { propsKey = null; renderProps(); }
+}
+// The pack of this browser a share link leads into, if it is one of them.
+function browserPackOf(t) {
+  const l = shareLinkParts(t);
+  return l && l.from === ShareCore.shareId() ? browserPacks.find(b => b.name === ShareCore.clean(l.name)) || null : null;
+}
+// Whether an exit leads anywhere: a level of this pack, or a good share link.
+const exitOk = t => isShareLink(t) ? !!shareLinkParts(t) : t !== null && t !== undefined && !!levels[t];
 
 // ---------- the editor's resource library ----------
 // The kinds an author picks from, each a folder beside editor.json with its
@@ -823,6 +888,8 @@ function blankPack() {
 function reopenOn(assets) {
   const q = new URLSearchParams(location.search);
   q.delete('pack');
+  q.delete('for');
+  q.delete('new');
   q.set('assets', assets);
   location.search = q.toString();
 }
@@ -978,12 +1045,12 @@ function readBgSpec(spec) {
 function exitPaths(src) {
   const want = src.exits || [];
   let last = -1;
-  want.forEach((t, d) => { if (t !== null && t !== undefined && levels[t]) last = d; });
+  want.forEach((t, d) => { if (exitOk(t)) last = d; });
   const out = [];
   for (let d = 0; d <= last; d++) {
     const t = want[d];
-    if (t === null || t === undefined || !levels[t]) return [];   // a hole; reported elsewhere
-    out.push(levelFile(t));
+    if (!exitOk(t)) return [];   // a hole; reported elsewhere
+    out.push(isShareLink(t) ? shareLinkParts(t).href : levelFile(t));
   }
   return out;
 }
@@ -995,10 +1062,11 @@ function packProblems() {
   levels.forEach((src, i) => {
     const want = src.exits || [];
     let last = -1;
-    want.forEach((t, d) => { if (t !== null && t !== undefined && levels[t]) last = d; });
+    want.forEach((t, d) => { if (exitOk(t)) last = d; });
+    want.forEach((t, d) => { if (isShareLink(t) && !exitOk(t)) found.push(`${titleAt(i)}: flag ${d} is to lead into another browser's pack, but has no share link that works yet.`); });
     for (let d = 0; d < last; d++) {
       const t = want[d];
-      if (t === null || t === undefined || !levels[t]) {
+      if (!exitOk(t)) {
         found.push(`${titleAt(i)}: flag ${d} leads nowhere, but flag ${last} does — give ${d} a target.`);
         break;
       }
@@ -1664,46 +1732,144 @@ const levelSelect = document.getElementById('levelSelect');
 
 nameInput.addEventListener('input', () => { levelName = nameInput.value; refreshLevels(); save(); });
 
-// The asset pack the open level pack is built with: the folders the page can
-// read — in assetpacks/ and the ones the asset pack creator keeps in the
-// browser (its Open in level editor). Picking one opens the page on it.
-const assetName = document.getElementById('assetName');
-const assetWhere = dir => dir.replace(/^\//, '').replace(/\/$/, '');
-// the name shown for it: the last part of its folder (or the one it was saved under)
-assetName.textContent = assetWhere(EDITOR_DIR).split('/').pop();
-async function assetChoices() {
-  const opts = new Map([[EDITOR_DIR, assetWhere(EDITOR_DIR).split('/').pop() + ' — ' + assetWhere(EDITOR_DIR)]]);
-  if (!opts.has(DEFAULT_ASSETS)) opts.set(DEFAULT_ASSETS, 'garden — ' + assetWhere(DEFAULT_ASSETS));
+// ---------- the level pack's own art ----------
+// A level pack owns its art — its tiles, objects, backgrounds and sounds. It
+// is kept in this browser for that pack alone (/__idb/assets/lp-<uid>/), and
+// the asset pack creator is where it is changed: Edit assets ↗ opens the
+// creator on it — the first time, on a copy of what the pack was built with
+// until then — and the creator's Back to level editor brings the changes
+// here, to this pack and no other. (`assets` is still where the page reads
+// the art from: the pack's own, or, until it has any, a folder on disk,
+// which nothing here changes.)
+const newUid = () => (crypto.randomUUID ? crypto.randomUUID().replace(/-/g, '') : Math.random().toString(36).slice(2) + Date.now().toString(36)).slice(0, 12);
+const ownArtName = p => 'lp-' + p.uid;
+// The name of the art kept in the browser's store at `dir`, or null if it is
+// somewhere else.
+function storedArt(dir) {
+  const at = packStore.PREFIX + 'assets/';
+  return dir && dir.startsWith(at) ? decodeURIComponent(dir.slice(at.length).replace(/\/$/, '')) : null;
+}
+// The art at `dir` made `p`'s own: if it is kept in the browser, a copy of it
+// under p's name (bytes already kept aren't kept twice), so that changing
+// one pack's art never changes another's. Art in a folder on disk is only
+// pointed at until the creator first saves this pack's own.
+async function adoptArt(p, dir) {
+  if (!p.uid) p.uid = newUid();
+  p.assets = dir;
+  const from = storedArt(dir);
+  if (!from || from === ownArtName(p) || !await storeReady(3000)) return;
+  try {
+    const files = await packStore.files('assets', from);
+    if (files.length) p.assets = await packStore.put('assets', ownArtName(p), files, p.name || 'Level pack');
+  } catch (err) { /* pointed at, then */ }
+}
+// The same, for a level pack already here, in the background: once its copy
+// is made the page opens again on it. The pack is found again by its uid then
+// — its record may have been put anew meanwhile (stashPack).
+function adoptLater(uid, dir, clean = false) {
+  const held = packs.find(x => x.uid === uid);
+  const tmp = { uid, name: held && held.name };
+  adoptArt(tmp, dir).then(() => {
+    if (tmp.assets === dir || noPack) return;
+    if (packs[packIndex] && packs[packIndex].uid === uid) stashPack();
+    const p = packs.find(x => x.uid === uid);
+    if (!p) return;
+    p.assets = tmp.assets;
+    if (clean) keepBase(p);
+    persist();
+    if (packs[packIndex] === p) reopenOn(p.assets);
+  });
+}
+// The art a new level pack can start with: the open one's, the other level
+// packs', the asset packs on disk (assetpacks/index.json) and those the
+// asset pack creator saved in this browser. Whichever it is, the new pack
+// gets a copy.
+async function artChoices() {
+  const opts = new Map();
+  const add = (dir, label) => { if (dir && !opts.has(dir)) opts.set(dir, label); };
+  if (!noPack) add(EDITOR_DIR, `${packName || 'this level pack'} — the one open`);
+  packs.forEach((p, i) => { if (i !== packIndex || noPack) add(p.assets || DEFAULT_ASSETS, `${p.name || `Level pack ${i + 1}`} — a level pack here`); });
   try {
     const res = await fetch('/assetpacks/index.json', { cache: 'no-store' });
     // a zipped one can't be read here
-    if (res.ok) for (const p of await res.json()) if (String(p.dir).endsWith('/')) opts.set(p.dir, `${p.title || p.name} — ${p.dir.replace(/^\//, '').replace(/\/$/, '')}`);
+    if (res.ok) for (const p of await res.json()) if (String(p.dir).endsWith('/')) add(p.dir, `${p.title || p.name} — an asset pack in ${p.dir.replace(/^\//, '').replace(/\/$/, '')}`);
   } catch (err) { /* no list */ }
   try {
-    if (await storeReady(1500)) for (const p of await packStore.list('assets')) opts.set(packStore.url('assets', p.name), `${p.title} — saved in this browser`);
+    if (await storeReady(1500)) for (const p of await packStore.list('assets')) {
+      if (!p.name.startsWith('lp-')) add(packStore.url('assets', p.name), `${p.title} — from the asset pack creator`);
+    }
   } catch (err) { /* none kept */ }
+  add(DEFAULT_ASSETS, "garden — the game's own");
   return [...opts].map(([value, label]) => ({ value, label }));
 }
-// Edit ↗: the asset pack creator, on this asset pack — the pack there it came
-// from, or imported into it if it has none (its ?open=). One tab is kept for
-// the creator, as the creator keeps one for this editor.
-document.getElementById('editAssetsBtn').addEventListener('click', () => {
-  const url = `/assetpack-editor/?open=${encodeURIComponent(EDITOR_DIR)}`;
-  const tab = window.open(url, 'wtw-asset-editor');
-  if (tab) tab.focus();
-});
-
-// the asset packs the page can read, like the creator's Import dialog
-document.getElementById('assetBtn').addEventListener('click', async () => {
+// Edit assets / Edit levels: the Asset Editor, in this page in place of the
+// levels, on the open level pack's art — its pack there for this level pack,
+// or a copy of what it is built with, made then — under the same bar. Edit
+// levels asks it to save the art as this level pack's (only if it changed),
+// and the page opens again on it; unchanged, the levels are just shown again.
+// The frame is kept, so going back to the art is at once. Meanwhile what
+// would read the art as it was — Export, Share, another pack — waits.
+const assetFrame = document.getElementById('assetFrame');
+const editAssetsBtn = document.getElementById('editAssetsBtn');
+const ART_WAITS = ['packPick', 'importBtn', 'shareBtn', 'downloadBtn', 'revertBtn', 'delPackBtn'];
+const MODE_KEY = 'wtwEditorMode';
+let assetsMode = false;
+function showAssetsMode(on) {
+  assetsMode = on;
+  document.body.classList.toggle('assets-mode', on);
+  assetFrame.hidden = !on;
+  editAssetsBtn.textContent = on ? '🧩 Edit levels' : '🎨 Edit assets';
+  editAssetsBtn.title = on
+    ? "Back to this level pack's levels, with the art as you changed it"
+    : "Change this level pack's art — its tiles, sprites, objects, backgrounds and sounds — in the Asset Editor. The art is this level pack's own: no other pack changes with it";
+  for (const id of ART_WAITS) {
+    const b = document.getElementById(id);
+    if (on) { b.disabled = true; b.dataset.waitTitle = b.title; b.title = 'Edit levels first — the art comes in then'; }
+    else if (b.dataset.waitTitle !== undefined) { b.disabled = false; b.title = b.dataset.waitTitle; delete b.dataset.waitTitle; }
+  }
+  if (!on) refreshPacks();
+  try { sessionStorage.setItem(MODE_KEY, on ? 'assets' : ''); } catch (err) { /* not kept */ }
+}
+editAssetsBtn.title = "Change this level pack's art — its tiles, sprites, objects, backgrounds and sounds — in the Asset Editor. The art is this level pack's own: no other pack changes with it";
+function enterAssets() {
   if (noPack) return;
-  const want = await choose('Asset pack', 'Build this level pack with', await assetChoices(), EDITOR_DIR, 'Use it',
-    'Its tiles, objects, backgrounds and sounds. A zipped asset pack can only be read by the asset pack creator.');
-  if (!want || want === EDITOR_DIR) return;
+  closePackList();
   stashPack();
-  packs[packIndex].assets = want;
+  const p = packs[packIndex];
+  if (!p.uid) p.uid = newUid();
   save();
-  reopenOn(want);
-});
+  if (assetFrame.dataset.owner !== p.uid) {
+    const q = new URLSearchParams({ open: EDITOR_DIR, owner: p.uid, title: packName || p.name || 'Level pack', embed: '1' });
+    assetFrame.src = '/assetpack-editor/?' + q;
+    assetFrame.dataset.owner = p.uid;
+  }
+  showAssetsMode(true);
+}
+async function leaveAssets() {
+  editAssetsBtn.disabled = true;
+  const answer = new Promise(ok => {
+    const heard = e => {
+      if (e.source !== assetFrame.contentWindow || e.origin !== location.origin || !e.data || e.data.wtw !== 'assets' || !('done' in e.data)) return;
+      removeEventListener('message', heard);
+      ok(e.data);
+    };
+    addEventListener('message', heard);
+    setTimeout(() => { removeEventListener('message', heard); ok({ done: false, error: 'the Asset Editor did not answer' }); }, 30000);
+  });
+  assetFrame.contentWindow.postMessage({ wtw: 'assets', do: 'commit' }, location.origin);
+  const r = await answer;
+  editAssetsBtn.disabled = false;
+  if (!r.done) return;                 // the Asset Editor says what is wrong; the art stays open
+  if (!r.changed) { showAssetsMode(false); return; }
+  const p = packs.find(x => x.uid === r.owner);
+  if (!p) { showAssetsMode(false); return; }
+  stashPack();
+  packs.find(x => x.uid === r.owner).assets = r.url;
+  persist();
+  try { sessionStorage.setItem(MODE_KEY, ''); } catch (err) { /* not kept */ }
+  reopenOn(r.url);
+}
+editAssetsBtn.addEventListener('click', () => { if (assetsMode) leaveAssets(); else enterAssets(); });
 
 // ---------- the background panel ----------
 const bgList = document.getElementById('bgList');
@@ -1915,12 +2081,21 @@ levelSelect.addEventListener('change', () => openLevel(+levelSelect.value));
 // The level pack button: a list, as the creator's pack button — a new level
 // pack, a copy of the open one and a rename first, then the level packs in
 // this browser, the open one marked, a * on those changed since last
-// exported. A click picks; a click away or Esc closes it.
+// exported, and after them the level packs kept in this browser that the
+// editor hasn't opened (fetched from a friend, uploaded, or from before): a
+// click opens one here. A click picks; a click away or Esc closes it.
 function closePackList() { document.querySelectorAll('.packlist').forEach(l => l.remove()); }
-packPick.addEventListener('click', e => {
+// The browser's level packs that aren't the copies of the editor's own.
+async function storePacksNotHere() {
+  const mine = new Set(packs.map(p => p.mirror).filter(Boolean));
+  try { return (await ShareCore.listPacks()).filter(p => !mine.has(p.name)); } catch { return []; }
+}
+packPick.addEventListener('click', async e => {
   e.stopPropagation();
   const wrap = packPick.parentElement;
   if (e.detail > 1 || wrap.querySelector('.packlist')) { closePackList(); return; }   // a double-click renames
+  const others = await storePacksNotHere();
+  if (wrap.querySelector('.packlist')) return;
   const name = escHtml(packName || 'this level pack');
   const box = document.createElement('div');
   box.className = 'packlist';
@@ -1934,16 +2109,20 @@ packPick.addEventListener('click', e => {
       const count = live.levels.length;
       return `<button type="button" role="option" class="${i === packIndex ? 'on' : ''}" data-packi="${i}" aria-selected="${i === packIndex}">
         <span>${escHtml(live.name || `Level pack ${i + 1}`)}${packDirty(live) ? ' *' : ''}</span><small>${count} ${count === 1 ? 'level' : 'levels'}${i === packIndex ? ' · open' : ''}</small></button>`;
-    }))
+    })),
+    others.length ? '<div class="packlistHead">Also in this browser — click to edit</div>' : '',
+    ...others.map(p => `<button type="button" role="option" data-store="${escHtml(p.name)}">
+      <span>${escHtml(p.title)}</span><small>${p.files} files${p.public ? '' : ' · private'}</small></button>`)
   ].join('');
   wrap.appendChild(box);
   (box.querySelector('.on') || box.querySelector('button')).focus();
 });
 packPick.parentElement.addEventListener('click', e => {
-  const b = e.target.closest('[data-packact],[data-packi]');
+  const b = e.target.closest('[data-packact],[data-packi],[data-store]');
   if (!b) return;
   closePackList();
-  if (b.dataset.packact === 'rename') startRename();
+  if (b.dataset.store) openStorePack(b.dataset.store);
+  else if (b.dataset.packact === 'rename') startRename();
   else if (b.dataset.packact) makeLevelPack(b.dataset.packact);
   else openPack(+b.dataset.packi);
 });
@@ -1989,18 +2168,26 @@ packNameInput.addEventListener('keydown', e => {
 packNameInput.addEventListener('blur', () => endRename(true));
 
 // A level pack made here, not read in: a copy of the open one, or an empty one.
-function makeLevelPack(kind) {
+async function makeLevelPack(kind) {
   if (kind === 'copy') {
     stashPack();
     const copy = JSON.parse(JSON.stringify(packs[packIndex]));
-    delete copy.sum; delete copy.mirror; delete copy.mirrorSum; delete copy.base;
+    delete copy.sum; delete copy.mirror; delete copy.mirrorSum; delete copy.base; delete copy.storeName;
+    copy.uid = newUid();
     copy.name = freeLevelPackName((packName || 'Level pack') + ' copy');
+    await adoptArt(copy, packs[packIndex].assets || EDITOR_DIR);   // its art too: a copy of its own
     addPack(copy);
     levelMsg.textContent = `Made “${copy.name}”, a copy.`;
     return;
   }
+  // empty, with the art of whichever is picked — its own copy of it
+  const art = await choose('New level pack', 'Start with the art of', await artChoices(), noPack ? DEFAULT_ASSETS : EDITOR_DIR, 'Make it',
+    'Its tiles, objects, backgrounds and sounds, copied: change them with 🎨 Edit assets, and no other pack changes.');
+  if (!art) return;
   const blank = blankPack();
+  blank.uid = newUid();
   blank.name = freeLevelPackName('Level pack');
+  await adoptArt(blank, art);
   addPack(blank);
   levelMsg.textContent = `Made “${blank.name}”, empty.`;
 }
@@ -2049,7 +2236,7 @@ function enterNoPack() {
 function addPack(p, stashed = false, clean = false) {
   if (noPack) { noPack = false; packs = []; }
   else if (!stashed) stashPack();
-  packs.push({ assets: EDITOR_DIR, ...p });
+  packs.push({ assets: EDITOR_DIR, ...p, uid: p.uid || newUid() });
   packIndex = packs.length - 1;
   if ((packs[packIndex].assets || DEFAULT_ASSETS) !== EDITOR_DIR) { persist(); reopenOn(packs[packIndex].assets); return; }
   applyPack(packs[packIndex]);
@@ -2057,6 +2244,10 @@ function addPack(p, stashed = false, clean = false) {
   refreshPacks(); refreshLevels(); renderProps(); render(); updateStatus(null); save();
   if (clean) { keepBase(packs[packIndex]); save(); }
   refreshOpenPacks();
+  // built with art another level pack owns (an import takes the open one's):
+  // a copy of it becomes this one's own, and the page opens again on that
+  const added = packs[packIndex];
+  if (storedArt(added.assets) && storedArt(added.assets) !== ownArtName(added)) adoptLater(added.uid, added.assets, clean);
 }
 
 // The level pack as it is now is the one Revert goes back to: it has just
@@ -2460,7 +2651,7 @@ document.getElementById('downloadBtn').addEventListener('click', async () => {
     stashPack();
     keepBase(packs[packIndex]);
     save();
-    levelMsg.textContent = `${handle ? 'Saved ' + handle.name : 'Downloaded ' + zipName} — ${files.length} files, its asset pack with it. Unzip it anywhere and open index.html.`;
+    levelMsg.textContent = `${handle ? 'Saved ' + handle.name : 'Downloaded ' + zipName} — ${files.length} files, its art with it. Unzip it anywhere and open index.html.`;
   } catch (err) {
     levelMsg.textContent = 'Could not build the level pack: ' + err.message;
   }
@@ -2497,16 +2688,50 @@ const OBJECT_PROPS = {
     kind: 'select',
     hint: 'A level may hold several flags, numbered by their info digit: 0F0 takes the first exit, 1F0 the second. A flag with nowhere to go ends the run.',
     byDigit: true,
-    options: () => [{ value: '', label: '— nothing, the run ends' }]
-      .concat(levels.map((s, i) => ({ value: String(i), label: `${i + 1}. ${titleAt(i)}` }))),
+    options: () => {
+      refreshBrowserPacks();
+      return [{ value: '', label: '— nothing, the run ends' }]
+        .concat(levels.map((s, i) => ({ value: String(i), label: `${i + 1}. ${titleAt(i)}` })))
+        .concat(browserPacks.length ? [{ value: '-', label: '── level packs in this browser ──', disabled: true }] : [])
+        .concat(browserPacks.map(b => ({ value: 'pack:' + b.name, label: `↗ ${b.title}${b.public ? '' : ' (private — friends get nothing)'}` })))
+        .concat([{ value: 'link', label: '↗ A level pack in another browser — its share link' }]);
+    },
     get: d => {
       const t = exits[d];
-      return (t === null || t === undefined || !levels[t]) ? '' : String(t);
+      if (!isShareLink(t)) return exitOk(t) ? String(t) : '';
+      const mine = browserPackOf(t);
+      return mine ? 'pack:' + mine.name : 'link';
     },
-    set: (d, v) => { exits[d] = v === '' ? null : +v; },
+    set: (d, v) => {
+      const was = isShareLink(exits[d]);
+      if (v.startsWith('pack:')) {
+        // one of this browser's packs: its share link, as a friend would be given
+        const b = browserPacks.find(x => x.name === v.slice(5));
+        exits[d] = b ? ShareCore.linkFor(b.name, b.v || '').replace(/&v=$/, '') : '';
+      } else exits[d] = v === 'link' ? (was && !browserPackOf(exits[d]) ? exits[d] : '') : v === '' ? null : +v;
+      // the link's own field, filled or emptied to match
+      setTimeout(() => { propsKey = null; renderProps(v === 'link'); });
+    },
     summary: d => {
       const t = exits[d];
-      return (t === null || t === undefined || !levels[t]) ? '' : titleAt(t);
+      if (isShareLink(t)) {
+        const mine = browserPackOf(t), l = shareLinkParts(t);
+        return mine ? `↗ ${mine.title}` : l ? `↗ ${l.name}` : '↗ (no link yet)';
+      }
+      return exitOk(t) ? titleAt(t) : '';
+    }
+  }, {
+    key: 'exitLink',
+    label: 'Share link',
+    kind: 'text',
+    rows: 2,
+    placeholder: 'https://…/share/?from=wtw-…&get=…&v=…',
+    hint: 'For a way into another browser: paste the link a share page gives for that level pack (share pack <name> in the web shell). In the game the flag stands faded until the pack can be had, then going through fetches it and plays it from its first level.',
+    get: d => isShareLink(exits[d]) ? exits[d] : '',
+    set: (d, v) => {
+      v = v.trim();
+      if (v) exits[d] = v;
+      else if (isShareLink(exits[d])) exits[d] = '';
     }
   }]
 };
@@ -2550,6 +2775,7 @@ function propField(p) {
       const opt = document.createElement('option');
       opt.value = o.value;
       opt.textContent = o.label;
+      opt.disabled = !!o.disabled;
       input.appendChild(opt);
     }
   } else if (p.kind === 'text') {
@@ -2560,7 +2786,7 @@ function propField(p) {
   input.value = p.get(objDigit);
   input.addEventListener(p.kind === 'select' ? 'change' : 'input', () => {
     p.set(objDigit, p.kind === 'number' ? +input.value : input.value);
-    refreshPropList(p);
+    propsFor().forEach(refreshPropList);     // one field may change another's summary
     save();
     render();
   });
@@ -2969,7 +3195,7 @@ async function mirrorNow() {
     if (!await storeReady(3000)) { mirrorError = 'the service worker is not running'; return; }
     // its own slot, not another level pack's of the same name
     const taken = new Set(packs.filter(x => x !== p).map(x => x.mirror));
-    let slot = packSlug(), n = 2;
+    let slot = p.storeName && !taken.has(p.storeName) ? p.storeName : packSlug(), n = 2;
     while (taken.has(slot)) slot = packSlug() + '-' + n++;
     const files = await levelPackFiles(true);
     // private before there is anything to fetch, and under a new name too
@@ -3022,26 +3248,50 @@ document.getElementById('sharingBtn').addEventListener('click', () => {
 });
 addEventListener('storage', e => { if (e.key === 'wtwSharing' || e.key === 'wtwPrivatePacks') drawSharing(); });
 
-// 🔗 Share: the level pack as it is now, from its copy in the pack store —
-// made at once rather than waited for — through share/, which gives its link.
-// The tab is opened on the click itself, so it isn't taken for a pop-up, and
-// pointed at share/ once the copy is made.
+// 🔗 Share: the open level pack's share link, to copy and send — of its copy
+// in the pack store as it is now (made at once rather than waited for), which
+// this browser shares while any of its pages is open. A word below it if
+// friends would get nothing: the pack private, or sharing off.
+const shareOverlay = document.getElementById('shareOverlay');
+const shareLink = document.getElementById('shareLink');
+const shareCopy = document.getElementById('shareCopy');
+document.getElementById('shareClose').addEventListener('click', () => shareOverlay.classList.add('hidden'));
+shareOverlay.addEventListener('click', e => { if (e.target === shareOverlay) shareOverlay.classList.add('hidden'); });
+addEventListener('keydown', e => { if (e.key === 'Escape') shareOverlay.classList.add('hidden'); });
+shareCopy.addEventListener('click', async () => {
+  try { await navigator.clipboard.writeText(shareLink.value); }
+  catch (err) { shareLink.select(); document.execCommand('copy'); }
+  shareCopy.textContent = 'Copied';
+  setTimeout(() => { shareCopy.textContent = 'Copy'; }, 1500);
+});
 document.getElementById('shareBtn').addEventListener('click', async () => {
   if (noPack) return;
-  const tab = window.open('', 'wtw-share');
   stashPack();
   clearTimeout(mirrorTimer);
+  levelMsg.textContent = 'Making the link…';
   await mirrorNow();
   const p = packs[packIndex];
-  if (!p.mirror || p.mirrorSum !== packSum(p) + '|' + EDITOR_DIR) {
-    if (tab) tab.close();
-    const why = await storeTrouble() || mirrorError || 'no reason given';
-    levelMsg.textContent = 'Could not keep a copy to share: ' + why + '.';
+  let link = '', why = '';
+  if (!p.mirror || p.mirrorSum !== packSum(p) + '|' + EDITOR_DIR) why = await storeTrouble() || mirrorError || 'no reason given';
+  else {
+    try {
+      const m = await packStore.manifest('levels', p.mirror);
+      link = ShareCore.linkFor(p.mirror, m ? m.v : '').replace(/&v=$/, '');
+    } catch (err) { why = err.message; }
+  }
+  levelMsg.textContent = '';
+  if (!link) {
     await ask('Could not share', 'The level pack has to be kept in this browser to be shared, and it could not be: ' + why + '.', 'OK');
     return;
   }
-  const url = `/share/?pack=${encodeURIComponent('idb:' + p.mirror)}`;
-  if (tab) { tab.location.href = url; tab.focus(); } else location.href = url;
+  document.getElementById('shareTitle').textContent = `Share ${packName || p.name || 'this level pack'}`;
+  shareLink.value = link;
+  document.getElementById('shareNote').textContent = packIsPrivate(p)
+    ? 'It is private: friends with the link get nothing until you make it public (🔒 Private, beside Share).'
+    : !ShareCore.sharingOn() ? 'Sharing is off in this browser: friends get nothing until you switch it on (📡 Sharing off).' : '';
+  shareOverlay.classList.remove('hidden');
+  shareLink.focus();
+  shareLink.select();
 });
 
 function load() {
@@ -3061,10 +3311,31 @@ function load() {
       return false;
     }
     if (!packs.length) return false;
+    for (const p of packs) if (!p.uid) p.uid = newUid();
+    // the creator's Back to level editor: the pack whose art it brings
+    const back = FOR_PACK ? packs.findIndex(p => p.uid === FOR_PACK) : -1;
+    if (back >= 0) packIndex = back;
     remapObjects(packs, data.objGlyphs || OBJECT_GLYPHS_BEFORE);
     applyPack(packs[packIndex]);
     return true;
   } catch (err) { return false; }
+}
+
+// A level pack kept in this browser that the editor hasn't opened, opened
+// here: read in as Import would, and that very copy in the store becomes this
+// pack's — not a second one beside it — under the name it has there, so links
+// to it go on working however it is renamed here. It is built again only once
+// something in it changes, with this editor's asset pack.
+async function openStorePack(name) {
+  const before = noPack ? 0 : packs.length;
+  await openLevelPack(packStore.url('levels', name) + 'levelpack.json');
+  if (noPack || packs.length === before) return;      // not added
+  if (packs.some((x, i) => i !== packIndex && x.mirror === name)) return;
+  stashPack();                      // (it puts a new record in place: take it after)
+  const p = packs[packIndex];
+  p.mirror = p.storeName = name;
+  p.mirrorSum = packSum(p) + '|' + EDITOR_DIR;
+  persist();
 }
 
 // ---------- Import ----------
@@ -3215,6 +3486,7 @@ async function openLevelPack(url) {
       const data = await r.json();
       datas.push(data);
       for (const exit of data.exit || []) {
+        if (shareLinkParts(exit)) continue;        // another browser's pack
         const href = new URL(exit, order[i]).href;
         if (!order.includes(href)) order.push(href);
       }
@@ -3225,7 +3497,7 @@ async function openLevelPack(url) {
       blankLevel();
       const error = fromText(JSON.stringify(datas[i]));
       if (error) throw new Error(`${new URL(order[i]).pathname.split('/').pop()}: ${error}`);
-      exits = (datas[i].exit || []).map(e => order.indexOf(new URL(e, order[i]).href));
+      exits = (datas[i].exit || []).map(e => shareLinkParts(e) ? e : order.indexOf(new URL(e, order[i]).href));
       read.push(JSON.parse(snapshot()));
     }
     // read straight from a file, it matches that file: no *
@@ -3267,11 +3539,14 @@ let testFrom = 0;        // the level Test was pressed on, to come back to
 function campaignEntries() {
   const pack = { name: packName || 'Level Pack' };
   return levels.map((src, i) => {
-    const exits = [];
+    const exits = [], links = [];
     const want = src.exits || [];
     let last = -1;
-    want.forEach((t, d) => { if (t !== null && t !== undefined && levels[t]) last = d; });
-    for (let d = 0; d <= last; d++) exits[d] = want[d];
+    want.forEach((t, d) => { if (exitOk(t)) last = d; });
+    for (let d = 0; d <= last; d++) {
+      if (isShareLink(want[d])) links[d] = shareLinkParts(want[d]);
+      else exits[d] = want[d];
+    }
     let lastMsg = -1;
     (src.messages || []).forEach((m, k) => { if (m) lastMsg = k; });
     return {
@@ -3288,7 +3563,8 @@ function campaignEntries() {
       sounds: null,
       glyphs: undefined,
       exits,
-      returns: []
+      returns: [],
+      links
     };
   });
 }
@@ -3322,6 +3598,12 @@ document.getElementById('testBtn').addEventListener('click', () => {
 testFrame.addEventListener('load', () => {
   if (testOverlay.classList.contains('hidden')) return;
   const w = testFrame.contentWindow;
+  // gone through a flag into another level pack (another browser's, or one
+  // kept in this one): that pack's own page plays on in here, and is left to it
+  if (!new URLSearchParams(w.location.search).has('test')) {
+    testMsg.textContent = 'Playing the level pack the flag led into — Stop to come back to editing.';
+    return;
+  }
   // The game disables Play until its objects and levels are off disk; that is
   // the same thing a custom level needs, so wait for it.
   const ready = w.document.getElementById('playBtn');
@@ -3402,9 +3684,37 @@ if (!load()) {
   packs.forEach((p, i) => { if (!(p.name || '').trim()) p.name = `Level pack ${i + 1}`; });
   packName = packs[packIndex].name;
   packNameInput.value = packName;
-  if (ASKED_ASSETS) packs[packIndex].assets = EDITOR_DIR;
+  // ?assets=&for= (the creator's Back to level editor) is the art of the
+  // level pack ?for= names, which is the open one now
+  const open = packs[packIndex];
+  if (ASKED_ASSETS && FOR_PACK && open.uid === FOR_PACK) open.assets = EDITOR_DIR;
+}
+// ?assets= alone — the creator's Open in level editor, on an asset pack that
+// is no level pack's — starts a new level pack with a copy of that art,
+// rather than changing the art of one already here
+const artNotOwned = ASKED_ASSETS && NEW_PACK && !FOR_PACK;
+if (FOR_PACK || NEW_PACK) {
+  const q = new URLSearchParams(location.search);
+  q.delete('for');
+  q.delete('new');
+  q.delete('assets');
+  history.replaceState(null, '', location.pathname + (q.toString() ? '?' + q : ''));
+}
+if (artNotOwned) {
+  const blank = blankPack();
+  blank.uid = newUid();
+  blank.name = freeLevelPackName(storedArt(EDITOR_DIR).replace(/[-_]+/g, ' '));
+  adoptArt(blank, EDITOR_DIR).then(() => { addPack(blank); levelMsg.textContent = `Made “${blank.name}”, empty, with that art.`; });
+} else if (!noPack) {
+  const open = packs[packIndex];
+  // the page opens again on the open one's own art (?for= named one gone)
+  if (open.assets !== EDITOR_DIR) { persist(); reopenOn(open.assets); }
+  // art the creator kept in the browser that is not this pack's own — from
+  // before level packs owned their art: a copy of it becomes its own
+  else if (storedArt(EDITOR_DIR) && storedArt(EDITOR_DIR) !== ownArtName(open)) adoptLater(open.uid, EDITOR_DIR);
 }
 resize(cols, rows, true);
+try { if (!noPack && sessionStorage.getItem(MODE_KEY) === 'assets') setTimeout(enterAssets); } catch (err) { /* not kept */ }
 
 refreshPacks();
 refreshLevels();

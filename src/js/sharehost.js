@@ -17,13 +17,35 @@
 // a pack carries, however old. Where there are no locks (plain http) every
 // page keeps trying for the id instead. A pack put up somewhere with no share/
 // just doesn't share. A page in a frame leaves it to the page around it.
+//
+// Any page, a frame's too, can have the sharing code itself through
+// window.wtwShare.code(), to fetch a pack from another browser: the game does
+// when a flag leads into one.
 (() => {
-  if (window.top !== window || window.wtwShareHost || typeof BroadcastChannel === 'undefined') return;
+  if (window.wtwShareHost) return;
   window.wtwShareHost = true;
 
   const CODE = ['/src/js/packstore.js', '/share/core.js', '/share/cards.js'];
   const PEERJS = 'https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.4/peerjs.min.js';
   const PLAY_PAUSE = 4;      // ms between a file's pieces while a game is on show
+  const loadPeerJs = () => new Promise((resolve, reject) => {
+    if (window.Peer) { resolve(); return; }
+    document.head.appendChild(Object.assign(document.createElement('script'), { src: PEERJS, onload: resolve, onerror: reject }));
+  });
+  let core = null;
+  async function sharingCode() {
+    await loadPeerJs();
+    if (core) return core;
+    const parts = await Promise.all(CODE.map(async url => {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`${url}: ${res.status}`);
+      return res.text();
+    }));
+    core = new Function(`${parts.join('\n;\n')}\n;return ShareCore;\n//# sourceURL=/share/master.js`)();
+    return core;
+  }
+  window.wtwShare = { code: sharingCode };
+  if (window.top !== window || typeof BroadcastChannel === 'undefined') return;
   const room = new BroadcastChannel('wtw-share');
   const isOn = () => { try { return localStorage.getItem('wtwSharing') !== 'off'; } catch { return false; } };
   const isGame = () => !!document.getElementById('game');
@@ -69,22 +91,6 @@
   };
   addEventListener('storage', e => { if (e.key === 'wtwSharing') switched(); });
 
-  const loadPeerJs = () => new Promise((resolve, reject) => {
-    if (window.Peer) { resolve(); return; }
-    document.head.appendChild(Object.assign(document.createElement('script'), { src: PEERJS, onload: resolve, onerror: reject }));
-  });
-  let core = null;
-  async function sharingCode() {
-    await loadPeerJs();
-    if (core) return core;
-    const parts = await Promise.all(CODE.map(async url => {
-      const res = await fetch(url);
-      if (!res.ok) throw new Error(`${url}: ${res.status}`);
-      return res.text();
-    }));
-    core = new Function(`${parts.join('\n;\n')}\n;return ShareCore;\n//# sourceURL=/share/master.js`)();
-    return core;
-  }
 
   async function master() {
     if (!isOn()) return;
