@@ -485,6 +485,7 @@
 <!-- the pack store the three tools share, and the worker that serves it -->
 <script src="../src/js/packstore.js"></script>
 <script>packStore.boot();</script>
+<script src="../src/js/arttidy.js"></script>
 <script src="../src/js/sharehost.js"></script>
 <script src="../share/core.js"></script>
 <script src="../src/js/tileset.js"></script>
@@ -2199,6 +2200,15 @@ async function makeLevelPack(kind) {
   levelMsg.textContent = `Made “${blank.name}”, empty.`;
 }
 
+// A level pack deleted: what the browser keeps of it goes too — the copy
+// friends fetch, and its own art (its copy in the store, and the Asset
+// Editor's working copy of it; src/js/arttidy.js).
+async function dropStored(p) {
+  if (!await storeReady(1500).catch(() => false)) return;
+  try { if (p.mirror) await packStore.remove('levels', p.mirror); } catch (err) { /* left for share tidy */ }
+  try { if (p.uid && !packs.some(x => x.uid === p.uid)) await ArtTidy.forPack(p.uid); } catch (err) { /* as above */ }
+}
+
 const delPackBtn = document.getElementById('delPackBtn');
 delPackBtn.addEventListener('click', async () => {
   stashPack();
@@ -2212,8 +2222,10 @@ delPackBtn.addEventListener('click', async () => {
     if (!ok) return;
   }
   packs.splice(gone, 1);
-  // the browser's copy goes too
-  if (p.mirror) storeReady(1500).then(ok => ok && packStore.remove('levels', p.mirror)).catch(() => {});
+  persist();
+  // the browser's copy goes too, and its own art (waited for: the page may
+  // be opened again on other art right after)
+  await dropStored(p);
   levelMsg.textContent = `${packDirty(p) ? 'Deleted' : 'Removed'} “${name}”.`;
   if (!packs.length) { enterNoPack(); return; }
   packIndex = Math.min(gone, packs.length - 1);
@@ -3549,7 +3561,7 @@ async function openLevelPack(url) {
         const was = packs[same];
         packs.splice(same, 1);
         if (packIndex >= same) packIndex = Math.max(0, packIndex - 1);
-        if (was.mirror) storeReady(1500).then(ok => ok && packStore.remove('levels', was.mirror)).catch(() => {});
+        dropStored(was);
         if (!packs.length) { noPack = true; }
         else applyPack(packs[packIndex]);
       } else name = freeLevelPackName(name);

@@ -65,6 +65,21 @@ const ShareCommands = (() => {
         return { deleted: await C.deletePacks(list.map(x => x.name)) };
       },
       text: r => r.cancelled ? 'Nothing deleted.' : r.deleted.length ? `Deleted ${r.deleted.join(', ')}.` : 'There are no level packs in this browser.' },
+    { name: 'tidy', options: { dry: '' },
+      about: "clear the art of level packs that are gone: art the level editor's level packs no longer use, and the Asset Editor's working copies of it; asks first. -dry only lists it",
+      run: async (p, io) => {
+        const found = await ArtTidy.unused();
+        if (!found) throw Object.assign(new Error("The level editor's list of level packs can't be read here, so nothing is cleared."), { code: 'failed' });
+        const n = found.art.length + found.copies.length;
+        if (!n || 'dry' in p) return { ...found, dry: 'dry' in p };
+        if (!await io.confirm(`Clear the art of ${found.art.length} level pack${found.art.length === 1 ? '' : 's'} that ${found.art.length === 1 ? 'is' : 'are'} gone${found.copies.length ? `, and ${found.copies.length} Asset Editor cop${found.copies.length === 1 ? 'y' : 'ies'}` : ''}? No level pack uses ${n === 1 ? 'it' : 'them'}.`)) return { ...found, cancelled: true };
+        return await ArtTidy.tidy(found);
+      },
+      text: r => {
+        if (!r.art.length && !r.copies.length) return 'Nothing to clear: every piece of art here belongs to a level pack.';
+        const lines = [...r.art.map(a => `  ${a.name}  ${a.title}  (${a.files} files)`), ...r.copies.map(c => `  Asset Editor: ${c.name}`)];
+        return (r.cancelled ? 'Nothing cleared.' : r.dry ? 'Would clear:' : 'Cleared:') + (r.cancelled ? '' : '\n' + lines.join('\n'));
+      } },
     { name: 'list', about: 'the level packs kept in this browser',
       run: () => C.listPacks(),
       text: rows => !rows.length ? 'There are no level packs in this browser.'
