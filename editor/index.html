@@ -855,6 +855,11 @@ function packSum(p) {
   return (h >>> 0).toString(36);
 }
 const packDirty = p => !p.sum || p.sum !== packSum(p);
+// What the browser's copy of a level pack was built from: what it holds, the
+// art it was built with, and that art's version — Edit levels gives it a new
+// one each time the art changes, so the copy friends fetch has the new art
+// even when the art's address stays the same.
+const mirrorKey = p => packSum(p) + '|' + (p.assets || EDITOR_DIR) + '|' + (p.artV || '');
 
 // Only the state, so boot can run its own first paint afterwards.
 function applyPack(pack) {
@@ -1864,7 +1869,9 @@ async function leaveAssets() {
   const p = packs.find(x => x.uid === r.owner);
   if (!p) { showAssetsMode(false); return; }
   stashPack();
-  packs.find(x => x.uid === r.owner).assets = r.url;
+  const back = packs.find(x => x.uid === r.owner);
+  back.assets = r.url;
+  back.artV = Date.now().toString(36);
   persist();
   try { sessionStorage.setItem(MODE_KEY, ''); } catch (err) { /* not kept */ }
   reopenOn(r.url);
@@ -2238,7 +2245,14 @@ function addPack(p, stashed = false, clean = false) {
   else if (!stashed) stashPack();
   packs.push({ assets: EDITOR_DIR, ...p, uid: p.uid || newUid() });
   packIndex = packs.length - 1;
-  if ((packs[packIndex].assets || DEFAULT_ASSETS) !== EDITOR_DIR) { persist(); reopenOn(packs[packIndex].assets); return; }
+  if ((packs[packIndex].assets || DEFAULT_ASSETS) !== EDITOR_DIR) {
+    // read from a file, it matches that file: its * is cleared once the page
+    // has opened again on its art and taken it in (fresh, below)
+    if (clean) packs[packIndex].fresh = true;
+    persist();
+    reopenOn(packs[packIndex].assets);
+    return;
+  }
   applyPack(packs[packIndex]);
   resize(cols, rows, true);
   refreshPacks(); refreshLevels(); renderProps(); render(); updateStatus(null); save();
@@ -3186,7 +3200,7 @@ async function mirrorNow() {
   if (noPack) return;
   const p = packs[packIndex];
   if (!p) return;
-  const key = packSum(p) + '|' + EDITOR_DIR;
+  const key = mirrorKey(p);
   // made already — unless it was taken out since (share/?list deletes them)
   if (p.mirrorSum === key && p.mirror && await storeReady(3000)
     && await packStore.get('levels', p.mirror, 'levelpack.json').catch(() => null)) return;
@@ -3272,7 +3286,7 @@ document.getElementById('shareBtn').addEventListener('click', async () => {
   await mirrorNow();
   const p = packs[packIndex];
   let link = '', why = '';
-  if (!p.mirror || p.mirrorSum !== packSum(p) + '|' + EDITOR_DIR) why = await storeTrouble() || mirrorError || 'no reason given';
+  if (!p.mirror || p.mirrorSum !== mirrorKey(p)) why = await storeTrouble() || mirrorError || 'no reason given';
   else {
     try {
       const m = await packStore.manifest('levels', p.mirror);
@@ -3334,7 +3348,7 @@ async function openStorePack(name) {
   stashPack();                      // (it puts a new record in place: take it after)
   const p = packs[packIndex];
   p.mirror = p.storeName = name;
-  p.mirrorSum = packSum(p) + '|' + EDITOR_DIR;
+  p.mirrorSum = mirrorKey(p);       // that very copy, art and all: nothing to build
   persist();
 }
 
@@ -3443,6 +3457,31 @@ async function importZip() {
   }
 }
 
+// A level pack kept in the browser (/__idb/levels/<name>/) carries a copy of
+// the art it was built with — tiles/, objects/, sounds/, backgrounds/ — and
+// its levelpack.json says what an assetpack.json would. That copy, with an
+// assetpack.json made from it, becomes the art of the level pack `uid`:
+// its address, or null if it is not one kept in the browser.
+async function artOfStoredPack(packUrl, manifest, uid, title) {
+  const m = /^\/__idb\/levels\/([^/]+)\/levelpack\.json$/.exec(packUrl.pathname);
+  if (!m || !await storeReady(3000)) return null;
+  try {
+    const all = await packStore.files('levels', decodeURIComponent(m[1]));
+    const art = all.filter(f => /^(tiles|objects|sounds|backgrounds)\//.test(f.name));
+    if (!art.some(f => f.name === 'tiles/tiles.png') || !art.some(f => f.name === 'objects/objects.json')) return null;
+    const sets = manifest.soundSets || {};
+    const lib = {
+      _comment: 'The art of a level pack, read from the copy of it the level pack carries.',
+      tileset: { ...(manifest.tileset || {}), texture: 'tiles/tiles.png' },
+      objects: { manifest: 'objects/objects.json' },
+      backgrounds: { dir: 'backgrounds/', items: (manifest.backgrounds && manifest.backgrounds.items) || [] },
+      sounds: { dir: 'sounds/', default: sets.default || 'default.json', items: sets.items || [] }
+    };
+    art.push({ name: 'assetpack.json', data: JSON.stringify(lib, null, 2) });
+    return await packStore.put('assets', 'lp-' + uid, art, title);
+  } catch (err) { return null; }
+}
+
 // Every file in a zip, by its path: stored or deflated entries, through its
 // central directory; deflate undone by the browser's DecompressionStream.
 async function readZip(buf) {
@@ -3515,7 +3554,12 @@ async function openLevelPack(url) {
         else applyPack(packs[packIndex]);
       } else name = freeLevelPackName(name);
     }
-    addPack({ name, levels: read, current: 0, assets: EDITOR_DIR }, true, true);   // stashed before the reading took over the level drawn
+    // its own art, if it is kept in the browser (a share link, a .zip, one
+    // fetched or left here): a copy of it becomes the new pack's; one on disk
+    // (levelpacks/) is built with the art open here, as before
+    const uid = newUid();
+    const art = await artOfStoredPack(packUrl, manifest, uid, name);
+    addPack({ name, levels: read, current: 0, uid, assets: art || EDITOR_DIR }, true, true);   // stashed before the reading took over the level drawn
     levelMsg.textContent = `Imported "${name}" — ${read.length} level${read.length === 1 ? '' : 's'}.`;
   } catch (err) {
     levelMsg.textContent = 'Could not import that level pack: ' + err.message;
@@ -3779,6 +3823,17 @@ const libraryReady = fetch(EDITOR_LIBRARY)
     save();
   })
   .catch(() => { /* the colour picker still works without the library */ });
+
+// a level pack just imported, the page opened again on its own art: taken
+// in now, it matches what it was read from — no *
+libraryReady.then(() => {
+  const p = !noPack && packs[packIndex];
+  if (!p || !p.fresh) return;
+  stashPack();
+  delete packs[packIndex].fresh;
+  keepBase(packs[packIndex]);
+  save();
+});
 
 const objectsReady = atlas.loadRoot(EDITOR_OBJECTS)
   .then(() => { buildObjPalette(); refreshSelection(); render(); })
